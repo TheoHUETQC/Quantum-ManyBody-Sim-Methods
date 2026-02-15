@@ -66,8 +66,8 @@ def measurements_entropy(rho : np.array) : # S
 
 def measurements_entropy_SVD(s : np.array) : # S en utilisant les valeurs singulière
   s2 = np.abs(s)**2
-  s2 = s2[s2 > 1e-12] # this avoids numerical instability issues : log(0)
-  return  -np.sum(s2 * np.log(s2))
+  s2 = s2[s2 > 0] # this avoids numerical instability issues : log(0)
+  return  float(-np.sum(s2 * np.log(s2)))
 
 def measurements_purity(rho : np.array) : # P
   return np.trace(rho @ rho)
