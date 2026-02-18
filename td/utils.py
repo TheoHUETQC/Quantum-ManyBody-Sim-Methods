@@ -16,7 +16,7 @@ def normalisation(v : np.ndarray) -> np.ndarray:
   return v/np.linalg.norm(v)
 
 def trace(A : np.ndarray) -> float:
-  return float(np.einsum("ii->",A))
+  return np.einsum("ii->",A)
 
 def partial_trace_A(rho : np.ndarray) -> np.ndarray:
   return rho[0:2,0:2] + rho[2:4,2:4]
