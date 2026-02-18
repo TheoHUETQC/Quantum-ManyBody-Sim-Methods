@@ -30,12 +30,14 @@ def norm2(v : np.ndarray) -> float:
 # phy
 
 def ground_state(H : np.ndarray) -> tuple[np.ndarray, np.ndarray] : # calcul de l'énérgie et du vecteur propre associé au ground state
-  eigenValues, eigenVector = sparse.linalg.eigsh(H, k=1, which="SA")  # k=1 cause we need one vector, "SA" for smallest eigenvalue
-  return eigenValues, eigenVector/np.linalg.norm(eigenVector)
-  """eigenValues, eigenVectors = np.linalg.eigh(H)
+  #version numpy moin optimisé car elle calcul toute les valeurs et vecteurs propres mais renvoie toujours le meme vecteur sans approximation
+  eigenValues, eigenVectors = np.linalg.eigh(H) 
   i = np.argmin(eigenValues)
   eigenVector = eigenVectors[:,i]
-  return eigenValues[i], eigenVector/np.linalg.norm(eigenVector)"""
+  return eigenValues[i], eigenVector/np.linalg.norm(eigenVector)
+  # version scipy.sparse plus optimisé mais approximation pour les valeurs propre, plus stable si k > 1
+  eigenValues, eigenVector = sparse.linalg.eigsh(H, k=1, which="SA")  # k=1 cause we need one vector, "SA" for smallest eigenvalue
+  return eigenValues, normalisation(eigenVector) 
 
 def compute_rho(v : np.ndarray) -> np.ndarray:
   return np.outer(v,np.conjugate(v))
@@ -47,12 +49,6 @@ def svd(A : np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray] : # return 
 
 def sparse_svd(A : np.ndarray, k: int) :
   return sparse.linalg.svds(A, k)
-
-def mps_tensor(A : np.ndarray, B :np.ndarray) -> np.ndarray :
-  return np.einsum('sk,kS->sS', A, B) #return psi
-
-def mps_norm(A : np.ndarray, B :np.ndarray) -> float :
-  return np.einsum('sk,kS,sl,lS->', A.conj(), B.conj(), A, B).real
 
 # Measurement
 
