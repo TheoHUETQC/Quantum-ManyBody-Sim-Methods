@@ -3,13 +3,16 @@ import numpy as np
 epsilon = 1e-8
 
 # Pauli matrices
-X = np.array([[0, 1], [1, 0]], dtype=complex)
-Y = np.array([[0, -1j], [1j, 0]], dtype=complex)
-Z = np.array([[1, 0], [0, -1]], dtype=complex)
-I = np.eye(2)
+X = np.array([[0, 1], 
+              [1, 0]], dtype=complex)
+Y = np.array([[0, -1j], 
+              [1j, 0]], dtype=complex)
+Z = np.array([[1, 0], 
+              [0, -1]], dtype=complex)
+I = np.eye(2, dtype=complex)
 
-SP = (X+1j*Y)/2
-SM = (X-1j*Y)/2
+SP = 0.5 * (X + 1j * Y)
+SM = 0.5 * (X - 1j * Y)
 
 # Time discretization
 dt = 0.1
