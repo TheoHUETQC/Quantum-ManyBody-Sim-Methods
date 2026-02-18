@@ -53,12 +53,12 @@ def sparse_svd(A : np.ndarray, k: int) :
 # Measurement
 
 def measurements_averageEnergy(H : np.ndarray, rho : np.ndarray) -> float : # <H>
-  return float(np.trace(H @ rho))
+  return float(np.trace(H @ rho).real)
 
 def measurements_entropy(rho : np.ndarray) -> float: # S
   eigenValues = np.abs(np.linalg.eigvals(rho)) # this avoids numerical instability issues : log(0)
   eigenValues = eigenValues[eigenValues > 1e-12]
-  return  float(-np.sum(eigenValues * np.log(eigenValues)))
+  return  float(-np.sum(eigenValues * np.log(eigenValues)).real)
 
 def measurements_entropy_SVD(s : np.ndarray) -> float: # S en utilisant les valeurs singulière
   s2 = np.abs(s)**2
@@ -66,4 +66,4 @@ def measurements_entropy_SVD(s : np.ndarray) -> float: # S en utilisant les vale
   return  float(-np.sum(s2 * np.log(s2)))
 
 def measurements_purity(rho : np.ndarray) -> float: # P
-  return float(np.trace(rho @ rho))
+  return float(np.trace(rho @ rho).real)
