@@ -1,0 +1,16 @@
+# Jupyter Notebooks
+.ipynb_checkpoints/
+checkpoint/
+
+# Julia
+deps/
+*.jl.cov
+*.jl.mem
+
+# Python
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
+Thumbs.db
