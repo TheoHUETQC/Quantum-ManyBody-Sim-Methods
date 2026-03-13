@@ -1,8 +1,8 @@
 # Quantum-ManyBody-Sim-Methods
 
-Numerical methods for the study of quantum many-body dynamics. This repository was developed during a Master 2 Internship in Theoretical Physics under the supervision of Dr. Jacopo De Nardis (College de France / Université de Cergy CYU).
+Numerical methods for the study of **quantum many-body dynamics**. This repository was developed during a Master 2 Internship in Theoretical Physics under the supervision of Dr. Jacopo De Nardis (College de France / Université de Cergy CYU). (Since the internship isn't over yet, more content coming soon.)
 
-Most simulations are implemented in Julia (for high-performance linear algebra) or Python.
+Most simulations are implemented in **Julia** (for high-performance linear algebra) or **Python**.
 
 ---
 
@@ -21,18 +21,19 @@ The repository is organized by physical paradigms to reflect the different ways 
 
 Focuses on methods that exploit the low-entanglement area law of physical states.
 
-    - **mps-states/**: Representation of 1D quantum states as Matrix Product States.
-       - *tutorials/*: Basic manipulation, Canonical forms, and Time-Evolving Block Decimation (TEBD).
-    - **notes/**: Theoretical summaries from conferences (e.g., Quant25) and literature.
+- **mps-states/**: Representation of 1D quantum states as Matrix Product States.
+  - *tutorials/*: Basic manipulation, Canonical forms, and Time-Evolving Block Decimation (TEBD).
+- **notes/**: Theoretical summaries from conferences (e.g., Quant25) and literature.
 
 ### Heisenberg Picture
 
 Instead of the state $`|\psi \rangle`$, we track the evolution of observables $`\hat{O}(t)`$.
-    - **operator-entanglement/**: Uses the MPO (Matrix Product Operator) formalism to simulate operator growth. The complexity is controlled by the bond dimension $`\chi`$, which truncates the entanglement in the operator space.
-    - **pauli-propagation/**: A method decomposing operators into a basis of Pauli strings to study their weight distribution and diffusion.
+- **operator-entanglement/**: Uses the MPO (Matrix Product Operator) formalism to simulate operator growth. The complexity is controlled by the bond dimension $`\chi`$, which truncates the entanglement in the operator space.
+- **pauli-propagation/**: A method decomposing operators into a basis of Pauli strings to study their weight distribution and diffusion.
 
 ### Stochastic Methods
-    - **quantum-monte-carlo/**: Stochastic sampling techniques to overcome the dimensionality curse for specific classes of Hamiltonians.
+
+- **quantum-monte-carlo/**: Stochastic sampling techniques to overcome the dimensionality curse for specific classes of Hamiltonians.
 
 ---
 
