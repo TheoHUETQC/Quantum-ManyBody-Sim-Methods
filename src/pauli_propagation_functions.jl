@@ -20,7 +20,7 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
 
   overlap, entropy, norm = Float64[], Float64[], Float64[]
   current = observable
-
+  push!(overlap, overlapwithzero(current))
   for i in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\
     first_gate_idx = ((i-1)*ngate_bylayer)+1; last_gate_idx = (i * ngate_bylayer)
     layer_gates = circuit[first_gate_idx:last_gate_idx]
@@ -35,7 +35,7 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
     push!(overlap, overlapwithzero(current))
     push!(entropy, pauli_entropy(current))
 
-    j=nlayers-i
+    j=nlayers-i+1
     if j % (nlayers÷10)==0
       norm_temp = pauli_norm(current)
       push!(norm, norm_temp)
@@ -50,7 +50,7 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
   result = Dict("overlap" => overlap, "S" => entropy, "norm" => norm)
 
   elapsed_time = time() - t1
-  println("Time taken by propagate_layerbylayer: ", elapsed_time, " seconds")
+  println("Time taken by pp.propagate_layerbylayer: ", elapsed_time, " seconds")
   return current, result
 end
 
