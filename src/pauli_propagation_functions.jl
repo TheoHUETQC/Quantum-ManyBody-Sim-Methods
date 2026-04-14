@@ -1,7 +1,39 @@
 module pauli_propagation_functions
-export pauli_norm, pauli_entropy, propagate_layerbylayer
+export decode_pauli, compute_matrix, pauli_norm, pauli_entropy, propagate_layerbylayer
 
 using PauliPropagation
+using PauliPropagation: Xmat, Ymat, Zmat
+using LinearAlgebra
+
+#------------ Decode Pauli string ------------
+function decode_pauli(pauli_string::UInt8, num_qubits::Int)
+    mapping = Dict(0b00 => "I", 0b01 => "X", 0b10 => "Y", 0b11 => "Z")
+    
+    res = ""
+    for i in 0:(num_qubits - 1)
+        bits = (pauli_string >> (2 * i)) & 0b11
+        res *= mapping[bits]
+    end
+    return res
+end
+
+#------------ PauliSum -> Matrix ------------
+function compute_matrix(observable::PauliSum)
+  nqubits = observable.nqubits
+  mapping = Dict('I' => I(nqubits), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
+
+  result = zeros(ComplexF64, 2^nqubits, 2^nqubits)
+  for (pauli_string, coeff) in observable
+      string = decode_pauli(pauli_string, nqubits)
+      result_string = 1.
+      for op in string
+        result_string = kron(result_string, mapping[op])
+      end
+      
+      result += coeff * result_string
+  end
+  return result
+end
 
 #------------ Pauli Norm ------------ 
 function pauli_norm(pauli_sum::PauliSum)
@@ -25,7 +57,7 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
     first_gate_idx = ((i-1)*ngate_bylayer)+1; last_gate_idx = (i * ngate_bylayer)
     layer_gates = circuit[first_gate_idx:last_gate_idx]
 
-    if parameters == nothing
+    if parameters === nothing
         parameter = nothing
     else
         parameter = parameters[first_gate_idx:last_gate_idx]
@@ -36,7 +68,7 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
     push!(entropy, pauli_entropy(current))
 
     j=nlayers-i+1
-    if j % (nlayers÷10)==0
+    if j % max(1, nlayers÷10)==0
       norm_temp = pauli_norm(current)
       push!(norm, norm_temp)
       if !(norm_temp ≈ 1)
