@@ -37,13 +37,14 @@ function propagate_layerbylayer(
     circuit::Vector{Vector{ITensor}},
     observable::MPO;
     cutoff::Float64=1e-8,
+    maxdim::Int=200,
     bond::Union{Int, Nothing}=nothing,
     ψ0::Union{MPS, Nothing}=nothing
     )
   t0 = time()
   nlayers = length(circuit)
   
-  maxbonds, entropies, norms, overlaps = Int[], Float64[], Float64[], Float64[]
+  maxlink, entropies, norms, overlaps = Int[], Float64[], Float64[], Float64[]
 
   current = copy(observable)
   adjoint_circuit = [dag.(layer) for layer in circuit]
@@ -63,15 +64,15 @@ function propagate_layerbylayer(
   norm0 = norm(observable)  
   push!(overlaps, overlap(observable, ψ0))
   for (layer_idx, layer) in enumerate(adjoint_circuit)
-    current = apply(layer, current; apply_dag=true, cutoff=cutoff) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
+    current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
     
-    maxbond_temp = maxlinkdim(current)
+    maxlink_temp = maxlinkdim(current)
 
-    push!(maxbonds, maxbond_temp)
+    push!(maxlink, maxlink_temp)
     push!(entropies, operator_entropy(current, bond))
     push!(overlaps, overlap(current, ψ0))
 
-    if layer_idx % (nlayers ÷ 10)==0
+    if layer_idx % max(1, nlayers ÷ 10)==0
         norm_temp = norm(current)
         push!(norms, norm_temp)
 
@@ -87,7 +88,7 @@ function propagate_layerbylayer(
   elapsed_time = time() - t0
   println("Time taken by mpo_functions.propagate_layerbylayer: ", elapsed_time, " seconds")
 
-  result = Dict("maxbond" => maxbonds, "S" => entropies, "norm" => norms, "overlap" => overlaps)
+  result = Dict("maxlink" => maxlink, "S" => entropies, "norm" => norms, "overlap" => overlaps)
 
   return current, result
 end
