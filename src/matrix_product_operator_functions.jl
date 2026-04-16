@@ -49,7 +49,7 @@ function propagate_layerbylayer(
   current = copy(observable)
   adjoint_circuit = [dag.(layer) for layer in circuit]
   
-  sites_mps = siteinds(first, current)
+  sites_mps = [siteind(current, i; plev=0) for i in 1:length(current)]
 
   N = length(sites_mps)
   if bond === nothing 

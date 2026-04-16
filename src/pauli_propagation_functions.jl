@@ -1,5 +1,5 @@
 module pauli_propagation_functions
-export decode_pauli, compute_matrix, pauli_norm, pauli_entropy, propagate_layerbylayer
+export decode_pauli, compute_matrix, overlap, pauli_norm, pauli_entropy, propagate_layerbylayer
 
 using PauliPropagation
 using PauliPropagation: Xmat, Ymat, Zmat
@@ -35,6 +35,37 @@ function compute_matrix(observable::PauliSum)
   return result
 end
 
+#------------ overlap ------------ 
+function overlap2(pauli_sum::PauliSum, ψ)::Float64
+  state0 = append!([1],[0 for _ in 2:(2^pauli_sum.nqubits)])
+  if ψ == state0
+    return overlapwithzero(pauli_sum)
+  end 
+  matrix = compute_matrix(pauli_sum)
+  return real(ψ' * matrix * ψ)
+end
+
+function overlap(pauli_sum::PauliSum, ψ)::Float64 # faster
+  nqubits = pauli_sum.nqubits
+  mapping = Dict('I' => I(nqubits), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
+  
+  state0 = append!([1],[0 for _ in 2:(2^nqubits)])
+  if ψ == state0
+    return overlapwithzero(pauli_sum)
+  end 
+
+  result = 0.0
+  for (pauli_string, coeff) in pauli_sum
+      string = decode_pauli(pauli_string, nqubits)
+      result_string = 1.
+      for op in string
+        result_string = kron(result_string, mapping[op])
+      end
+      result += coeff * ψ' * result_string * ψ
+  end
+  return result
+end
+
 #------------ Pauli Norm ------------ 
 function pauli_norm(pauli_sum::PauliSum)
     return sum(((P, c),) -> abs(c)^2, pauli_sum; init=0.0)
@@ -46,13 +77,21 @@ function pauli_entropy(pauli_sum::PauliSum)
 end
 
 #------------ Propagate Layer by layer ------------ 
-function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64, parameters=nothing; max_weight::Integer, min_abs_coeff::Float64)
+function propagate_layerbylayer(
+  circuit, 
+  observable::PauliString, 
+  nlayers::Int64, 
+  parameters=nothing; 
+  max_weight::Integer, 
+  min_abs_coeff::Float64,
+  ψ0::Union{Vector{Int64}, Nothing}=nothing)
+
   t1 = time()
   ngate_bylayer = size(circuit,1) ÷ nlayers
 
-  overlap, entropy, norm = Float64[], Float64[], Float64[]
-  current = observable
-  push!(overlap, overlapwithzero(current))
+  overlaps, entropy, norm = Float64[], Float64[], Float64[]
+  current = PauliSum(observable)
+  push!(overlaps, overlap(current, ψ0))
   for i in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\
     first_gate_idx = ((i-1)*ngate_bylayer)+1; last_gate_idx = (i * ngate_bylayer)
     layer_gates = circuit[first_gate_idx:last_gate_idx]
@@ -64,7 +103,11 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
     end
     current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
 
-    push!(overlap, overlapwithzero(current))
+    if ψ0 === nothing
+      ψ0 = append!([1],[0 for _ in 2:(2^pauli_sum.nqubits)]) # |0> state
+    end
+
+    push!(overlaps, overlap(current, ψ0))
     push!(entropy, pauli_entropy(current))
 
     j=nlayers-i+1
@@ -79,7 +122,7 @@ function propagate_layerbylayer(circuit, observable::PauliString, nlayers::Int64
     end
   end
 
-  result = Dict("overlap" => overlap, "S" => entropy, "norm" => norm)
+  result = Dict("overlap" => overlaps, "S" => entropy, "norm" => norm)
 
   elapsed_time = time() - t1
   println("Time taken by pp.propagate_layerbylayer: ", elapsed_time, " seconds")
