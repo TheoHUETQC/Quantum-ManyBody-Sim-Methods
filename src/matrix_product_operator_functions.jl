@@ -61,8 +61,12 @@ function propagate_layerbylayer(
     ψ0 = MPS(sites_mps, init_state)
   end
 
-  norm0 = norm(observable)  
+  norm0 = norm(observable)
+  push!(maxlink, maxlinkdim(observable))
+  push!(entropies, operator_entropy(observable, bond))
   push!(overlaps, overlap(observable, ψ0))
+  push!(norms, norm0)
+
   for (layer_idx, layer) in enumerate(adjoint_circuit)
     current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
     

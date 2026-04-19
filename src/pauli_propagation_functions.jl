@@ -45,7 +45,8 @@ function overlap2(pauli_sum::PauliSum, ψ)::Float64
   return real(ψ' * matrix * ψ)
 end
 
-function overlap(pauli_sum::PauliSum, ψ)::Float64 # faster
+# faster than overlap2
+function overlap(pauli_sum::PauliSum, ψ)::Float64 
   nqubits = pauli_sum.nqubits
   mapping = Dict('I' => I(nqubits), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
   
@@ -90,8 +91,15 @@ function propagate_layerbylayer(
   ngate_bylayer = size(circuit,1) ÷ nlayers
 
   overlaps, entropy, norm = Float64[], Float64[], Float64[]
-  current = PauliSum(observable)
+
+  if ψ0 === nothing
+      ψ0 = append!([1],[0 for _ in 2:(2^observable.nqubits)]) # |0> state
+  end
+
+  current = PauliPropagation.PauliSum(observable)
   push!(overlaps, overlap(current, ψ0))
+  push!(entropy, pauli_entropy(current))
+  
   for i in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\
     first_gate_idx = ((i-1)*ngate_bylayer)+1; last_gate_idx = (i * ngate_bylayer)
     layer_gates = circuit[first_gate_idx:last_gate_idx]
@@ -102,10 +110,6 @@ function propagate_layerbylayer(
         parameter = parameters[first_gate_idx:last_gate_idx]
     end
     current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
-
-    if ψ0 === nothing
-      ψ0 = append!([1],[0 for _ in 2:(2^pauli_sum.nqubits)]) # |0> state
-    end
 
     push!(overlaps, overlap(current, ψ0))
     push!(entropy, pauli_entropy(current))
