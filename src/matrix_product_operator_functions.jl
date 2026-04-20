@@ -47,7 +47,7 @@ function propagate_layerbylayer(
   maxlink, entropies, norms, overlaps = Int[], Float64[], Float64[], Float64[]
 
   current = copy(observable)
-  adjoint_circuit = [dag.(layer) for layer in circuit]
+  heinseberg_circuit = [dag.(layer) for layer in reverse(circuit)]
   
   sites_mps = [siteind(current, i; plev=0) for i in 1:length(current)]
 
@@ -67,7 +67,7 @@ function propagate_layerbylayer(
   push!(overlaps, overlap(observable, ψ0))
   push!(norms, norm0)
 
-  for (layer_idx, layer) in enumerate(adjoint_circuit)
+  for (layer_idx, layer) in enumerate(heinseberg_circuit)
     current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
     
     maxlink_temp = maxlinkdim(current)
