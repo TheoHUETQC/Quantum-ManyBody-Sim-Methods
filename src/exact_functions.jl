@@ -35,7 +35,7 @@ function propagate_layerbylayer(
     end
     
     if ψ0 === nothing
-        ψ0 = append!([1],[0 for _ in 2:dim]) # |0> state
+        ψ0 = append!([1.],[0. for _ in 2:dim]) # |0> state
     end
 
     norm0 = norm(observable)
