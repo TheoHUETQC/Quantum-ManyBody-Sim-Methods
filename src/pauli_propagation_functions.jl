@@ -20,7 +20,7 @@ end
 #------------ PauliSum -> Matrix ------------
 function compute_matrix(observable::PauliSum)
   nqubits = observable.nqubits
-  mapping = Dict('I' => I(nqubits), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
+  mapping = Dict('I' => I(2), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
 
   result = zeros(ComplexF64, 2^nqubits, 2^nqubits)
   for (pauli_string, coeff) in observable
@@ -29,7 +29,6 @@ function compute_matrix(observable::PauliSum)
       for op in string
         result_string = kron(result_string, mapping[op])
       end
-      
       result += coeff * result_string
   end
   return result
@@ -85,7 +84,7 @@ function propagate_layerbylayer(
   parameters=nothing; 
   max_weight::Integer, 
   min_abs_coeff::Float64,
-  ψ0::Union{Vector{Int64}, Nothing}=nothing)
+  ψ0::Union{Vector{Float64}, Nothing}=nothing)
 
   t1 = time()
   ngate_bylayer = size(circuit,1) ÷ nlayers
@@ -99,6 +98,7 @@ function propagate_layerbylayer(
   current = PauliPropagation.PauliSum(observable)
   push!(overlaps, overlap(current, ψ0))
   push!(entropy, pauli_entropy(current))
+  push!(norm, pauli_norm(current))
   
   for i in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\
     first_gate_idx = ((i-1)*ngate_bylayer)+1; last_gate_idx = (i * ngate_bylayer)
