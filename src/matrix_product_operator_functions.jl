@@ -1,7 +1,25 @@
 module mpo_functions
-export overlap, operator_entropy, propagate_layerbylayer
+export compute_matrix, overlap, operator_entropy, propagate_layerbylayer
 
 using ITensors, ITensorMPS
+
+#------------ MPO -> Matrix ------------
+function compute_matrix(mpo::MPO, sites)
+    nqubits = length(sites)
+
+    Zitensor = ITensor(1.)
+    for i = 1:nqubits
+      Zitensor *= mpo[i]
+    end
+
+    row_indices = [sites[i]' for i in reverse(1:nqubits)]
+    col_indices = [sites[i]  for i in reverse(1:nqubits)]
+    
+    tensor_array = Array(Zitensor, row_indices..., col_indices...)
+
+    dim = 2^nqubits
+    return reshape(tensor_array, dim, dim)
+end
 
 #------------ Overlap with a state psi ------------
 function overlap(O::MPO, ψ::MPS)::Float64
@@ -47,15 +65,15 @@ function propagate_layerbylayer(
   maxlink, entropies, norms, overlaps = Int[], Float64[], Float64[], Float64[]
 
   current = copy(observable)
-  heinseberg_circuit = [dag.(layer) for layer in reverse(circuit)]
+  heinseberg_circuit = [reverse(dag.(layer)) for layer in reverse(circuit)]
   
   sites_mps = [siteind(current, i; plev=0) for i in 1:length(current)]
 
   N = length(sites_mps)
   if bond === nothing 
-    bond = N ÷ 2 # L'entropie est mesurée au milieu de la chaine par defaut
+    bond = N ÷ 2 +1 # L'entropie est mesurée au milieu de la chaine par defaut
   end
-
+  
   if ψ0 === nothing
     init_state = ["Up" for _ in 1:N] # "Dn" pour down
     ψ0 = MPS(sites_mps, init_state)
