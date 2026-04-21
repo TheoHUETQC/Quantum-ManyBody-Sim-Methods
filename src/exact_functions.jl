@@ -10,10 +10,26 @@ end
 
 #------------ Operator Entropy ------------
 function operator_entropy(O::Matrix, bond::Int)::Float64
-    if bond == 1 # on ne peut pas couper au bond 1 (pas de lien à gauche)
+    dim_total = size(O, 1)
+    nqubits = Int(log2(dim_total))
+    
+    if bond < 1 || bond >= nqubits # on ne peut pas couper au bond 1 (pas de lien à gauche)
         return 0.0
     end
-    return 1.
+
+    # dL = dimension à gauche, dR = dimension à droite
+    dL = 2^bond
+    dR = 2^(nqubits - bond)
+
+    O_tensor = reshape(O, dR, dL, dR, dL)
+    O_perm = permutedims(O_tensor, (2, 4, 1, 3))
+    M_schmidt = reshape(O_perm, dL^2, dR^2)
+    s = svdvals(M_schmidt)
+
+    prob = s.^2 / sum(s.^2)
+    entropy = -sum(p * log(p + 1e-15) for p in prob)
+
+    return entropy
 end
 
 #------------ Propagate Layer by layer ------------ 
@@ -24,14 +40,14 @@ function propagate_layerbylayer(
     ψ0::Union{Vector{Float64}, Nothing}=nothing)
 
     t = time()
-    dim = sqrt(length(observable))
+    dim = size(observable, 1)
     nlayers = length(circuit)
 
     entropies, norms, overlaps = Float64[], Float64[], Float64[]
 
     if bond === nothing
-      N = Int(log(dim) ÷ log(2)) # dim = 2^N
-      bond = N ÷ 2 # L'entropie est mesurée au milieu de la chaine par defaut
+      N = Int(log2(dim)) # dim = 2^N
+      bond = N ÷ 2 +1 # L'entropie est mesurée au milieu de la chaine par defaut
     end
     
     if ψ0 === nothing
@@ -45,7 +61,7 @@ function propagate_layerbylayer(
 
     current = copy(observable)
     for (layer_idx, layer) in enumerate(reverse(circuit))
-        for gate in layer
+        for gate in reverse(layer)
             current = gate' * current * gate
         end
         push!(entropies, operator_entropy(current, bond))
