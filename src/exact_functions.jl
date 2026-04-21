@@ -1,5 +1,5 @@
 module exact_functions
-export overlap, operator_entropy, propagate_layerbylayer
+export overlap, operator_entropy, propagate_layerbylayer, circuit_TFIM, get_Zi
 
 using LinearAlgebra
 
@@ -63,6 +63,65 @@ function propagate_layerbylayer(
     println("Time taken by ext.propagate_layerbylayer: ", elapsed_time, " seconds")
 
     return current, result
+end
+
+#------------ Circuit and observable for test ------------ 
+function circuit_TFIM(nqubits::Int64, dt::Float64, nlayers::Int64)
+    """
+    H = ∑XᵢXⱼ
+    """
+    Id = ComplexF64[1 0; 0 1]
+    X  = ComplexF64[0 1; 1 0]
+
+    topology = [(i, i+1) for i in 1:(nqubits-1)]
+
+    dim = 2^nqubits
+    H = zeros(ComplexF64, dim, dim)
+
+    for (qubit_i, qubit_j) in topology
+
+        term = [1.0 + 0.0im;;] 
+        
+        for k in 1:nqubits
+            if k == qubit_i || k == qubit_j
+                term = kron(term, X)
+            else
+                term = kron(term, Id)
+            end
+        end
+        H += term
+    end
+
+    U = exp(-1im * dt * H / 2)
+
+    layer = [U]
+    circuit_exact = Vector{Vector{Matrix}}()
+    
+    for _ in 1:nlayers
+        push!(circuit_exact, layer)
+    end
+
+    return circuit_exact
+end
+
+function get_Zi(nqubits::Int64, i::Int64)
+    """
+    Zᵢ = I..IZI..I with Z at the index i
+    """
+    Id = ComplexF64[1 0; 0 1]
+    Z  = ComplexF64[1 0; 0 -1]
+
+    obs = [1.0 + 0.0im;;] 
+
+    for k in 1:nqubits
+        if k == i
+            obs = kron(obs, Z)
+        else
+            obs = kron(obs, Id)
+        end
+    end
+    
+    return obs
 end
 
 end # module
