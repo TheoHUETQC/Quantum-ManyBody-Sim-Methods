@@ -18,7 +18,10 @@ function decode_pauli(pauli_string::UInt8, num_qubits::Int)
 end
 
 #------------ PauliSum -> Matrix ------------
-function compute_matrix(observable::PauliSum)
+function compute_matrix(observable::Union{PauliSum, PauliString})
+  if typeof(observable) == PauliString{UInt8, Float64}
+    observable = PauliSum(observable)
+  end
   nqubits = observable.nqubits
   mapping = Dict('I' => I(2), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
 
@@ -35,27 +38,31 @@ function compute_matrix(observable::PauliSum)
 end
 
 #------------ overlap ------------ 
-function overlap2(pauli_sum::PauliSum, ψ)::Float64
-  state0 = append!([1],[0 for _ in 2:(2^pauli_sum.nqubits)])
+function overlap2(observable::Union{PauliSum, PauliString}, ψ)::Float64
+  state0 = append!([1],[0 for _ in 2:(2^observable.nqubits)])
   if ψ == state0
-    return overlapwithzero(pauli_sum)
+    return overlapwithzero(observable)
   end 
-  matrix = compute_matrix(pauli_sum)
+  matrix = compute_matrix(observable)
   return real(ψ' * matrix * ψ)
 end
 
 # faster than overlap2
-function overlap(pauli_sum::PauliSum, ψ)::Float64 
-  nqubits = pauli_sum.nqubits
+function overlap(observable::Union{PauliSum, PauliString}, ψ)::Float64 
+  if typeof(observable) == PauliString{UInt8, Float64}
+    observable = PauliSum(observable)
+  end
+
+  nqubits = observable.nqubits
   mapping = Dict('I' => I(nqubits), 'X' => Xmat, 'Y' => Ymat, 'Z' => Zmat)
   
   state0 = append!([1],[0 for _ in 2:(2^nqubits)])
   if ψ == state0
-    return overlapwithzero(pauli_sum)
+    return overlapwithzero(observable)
   end 
 
   result = 0.0
-  for (pauli_string, coeff) in pauli_sum
+  for (pauli_string, coeff) in observable
       string = decode_pauli(pauli_string, nqubits)
       result_string = 1.
       for op in string
@@ -67,8 +74,11 @@ function overlap(pauli_sum::PauliSum, ψ)::Float64
 end
 
 #------------ Pauli Norm ------------ 
-function pauli_norm(pauli_sum::PauliSum)
-    return sum(((P, c),) -> abs(c)^2, pauli_sum; init=0.0)
+function pauli_norm(observable::Union{PauliSum, PauliString})
+    if typeof(observable) == PauliString{UInt8, Float64}
+      observable = PauliSum(observable)
+    end
+    return sum(((P, c),) -> abs(c)^2, observable; init=0.0)
 end
 
 #------------ Pauli Entropy ------------ 
@@ -79,7 +89,7 @@ end
 #------------ Propagate Layer by layer ------------ 
 function propagate_layerbylayer(
   circuit, 
-  observable::PauliString, 
+  observable::Union{PauliSum, PauliString}, 
   nlayers::Int64, 
   parameters=nothing; 
   max_weight::Integer, 
