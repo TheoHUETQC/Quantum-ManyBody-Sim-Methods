@@ -6,7 +6,7 @@ using PauliPropagation: Xmat, Ymat, Zmat
 using LinearAlgebra
 
 #------------ Decode Pauli string ------------
-function decode_pauli(pauli_string::UInt8, num_qubits::Int)
+function decode_pauli(pauli_string, num_qubits::Int)
     mapping = Dict(0b00 => "I", 0b01 => "X", 0b10 => "Y", 0b11 => "Z")
     
     res = ""
