@@ -1,5 +1,5 @@
 module pauli_propagation_functions
-export decode_pauli, compute_matrix, overlap, pauli_norm, pauli_entropy, propagate_layerbylayer
+export decode_pauli, compute_matrix, overlap, pauli_norm, pauli_entropy, operator_entropy, propagate_layerbylayer
 
 using PauliPropagation
 using PauliPropagation: Xmat, Ymat, Zmat
@@ -28,7 +28,7 @@ function compute_matrix(observable::Union{PauliSum, PauliString})
   result = zeros(ComplexF64, 2^nqubits, 2^nqubits)
   for (pauli_string, coeff) in observable
       string = decode_pauli(pauli_string, nqubits)
-      result_string = 1.
+      result_string = [1.0 + 0.0im;;]
       for op in string
         result_string = kron(result_string, mapping[op])
       end
@@ -64,7 +64,7 @@ function overlap(observable::Union{PauliSum, PauliString}, ψ)::Float64
   result = 0.0
   for (pauli_string, coeff) in observable
       string = decode_pauli(pauli_string, nqubits)
-      result_string = 1.
+      result_string = [1.0 + 0.0im;;]
       for op in string
         result_string = kron(result_string, mapping[op])
       end
@@ -84,6 +84,36 @@ end
 #------------ Pauli Entropy ------------ 
 function pauli_entropy(pauli_sum::PauliSum)
     return sum(((P, c),) -> c != 0 ? -abs(c)^2 * log(abs(c)^2) : 0.0, pauli_sum; init=0.0)
+end
+
+#------------ Operator Entropy ------------
+function operator_entropy_matrix(O::Matrix, bond::Int)::Float64
+    dim_total = size(O, 1)
+    nqubits = Int(log2(dim_total))
+    
+    if bond < 1 || bond >= nqubits # on ne peut pas couper au bond 1 (pas de lien à gauche)
+        return 0.0
+    end
+
+    # dL = dimension à gauche, dR = dimension à droite
+    dL = 2^bond
+    dR = 2^(nqubits - bond)
+
+    O_tensor = reshape(O, dR, dL, dR, dL)
+    O_perm = permutedims(O_tensor, (2, 4, 1, 3))
+    M_schmidt = reshape(O_perm, dL^2, dR^2)
+    s = svdvals(M_schmidt)
+
+    prob = s.^2 / sum(s.^2)
+    entropy = -sum(p * log(p + 1e-15) for p in prob)
+
+    return entropy
+end
+
+function operator_entropy(observable::Union{PauliSum, PauliString}, bond::Int)::Float64
+    matrix = compute_matrix(observable)
+    entropy = operator_entropy_matrix(matrix, bond)
+  return entropy
 end
 
 #------------ Propagate Layer by layer ------------ 
@@ -121,17 +151,14 @@ function propagate_layerbylayer(
     end
     current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
 
+    current /= sqrt(pauli_norm(current)) # on divise par la norm pour que \sum |c_\alpha|²=1 malgres les troncations
+
+    push!(norm, pauli_norm(current))
     push!(overlaps, overlap(current, ψ0))
     push!(entropy, pauli_entropy(current))
 
     j=nlayers-i+1
     if j % max(1, nlayers÷10)==0
-      norm_temp = pauli_norm(current)
-      push!(norm, norm_temp)
-      if !(norm_temp ≈ 1)
-        println("layer : ", j,"/", nlayers," Break cause pauli norm = ", norm_temp, " ≠ 1")
-        break
-      end
       println("layer : ",j,"/",nlayers," complete")
     end
   end
