@@ -163,10 +163,11 @@ function propagate_layerbylayer(
     end
   end
 
-  result = Dict("overlap" => overlaps, "S" => entropy, "norm" => norm)
-
   elapsed_time = time() - t1
   println("Time taken by pp.propagate_layerbylayer: ", elapsed_time, " seconds")
+
+  result = Dict("overlap" => overlaps, "S" => entropy, "norm" => norm, "time" => elapsed_time)
+ 
   return current, result
 end
 

@@ -110,7 +110,7 @@ function propagate_layerbylayer(
   elapsed_time = time() - t0
   println("Time taken by mpo_functions.propagate_layerbylayer: ", elapsed_time, " seconds")
 
-  result = Dict("maxlink" => maxlink, "S" => entropies, "norm" => norms, "overlap" => overlaps)
+  result = Dict("maxlink" => maxlink, "S" => entropies, "norm" => norms, "overlap" => overlaps, "time"=> elapsed_time)
 
   return current, result
 end

@@ -54,10 +54,9 @@ function propagate_layerbylayer(
         ψ0 = append!([1.],[0. for _ in 2:dim]) # |0> state
     end
 
-    norm0 = norm(observable)
     push!(entropies, operator_entropy(observable, bond))
     push!(overlaps, overlap(observable, ψ0))
-    push!(norms, norm0)
+    push!(norms, norm(observable))
 
     current = copy(observable)
     for (layer_idx, layer) in enumerate(reverse(circuit))
@@ -73,10 +72,10 @@ function propagate_layerbylayer(
         end
     end
 
-    result = Dict("S" => entropies, "norm" => norms, "overlap" => overlaps)
-
     elapsed_time = time() - t
     println("Time taken by ext.propagate_layerbylayer: ", elapsed_time, " seconds")
+
+    result = Dict("S" => entropies, "norm" => norms, "overlap" => overlaps, "time" => elapsed_time)
 
     return current, result
 end
