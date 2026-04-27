@@ -23,7 +23,7 @@ end
 
 #------------ Overlap with a state psi ------------
 function overlap(O::MPO, ψ::MPS)::Float64
-  return real(inner(ψ, O, ψ))
+  return real(inner(ψ', O, ψ))
 end
 
 #------------ Operator Entropy ------------
@@ -51,6 +51,17 @@ function operator_entropy(O::MPO, bond::Int)::Float64
 end
 
 #------------ Propagate Layer by layer ------------ 
+function tensor_dag(U::ITensor)::ITensor
+  indices = inds(U)
+  N = length(indices) ÷ 2
+
+  U_dag = U
+  for i in 1:N 
+    U_dag = swapind(U_dag, indices[i], indices[i+N])
+  end
+  return U_dag 
+end
+
 function propagate_layerbylayer(
     circuit::Vector{Vector{ITensor}},
     observable::MPO;
@@ -65,7 +76,7 @@ function propagate_layerbylayer(
   maxlink, entropies, norms, overlaps = Int[], Float64[], Float64[], Float64[]
 
   current = copy(observable)
-  heinseberg_circuit = [reverse(dag.(layer)) for layer in reverse(circuit)]
+  heinseberg_circuit = [reverse(tensor_dag.(layer)) for layer in reverse(circuit)]
   
   sites_mps = [siteind(current, i; plev=0) for i in 1:length(current)]
 
@@ -87,22 +98,15 @@ function propagate_layerbylayer(
 
   for (layer_idx, layer) in enumerate(heinseberg_circuit)
     current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
-    
-    maxlink_temp = maxlinkdim(current)
+    norm_temp = norm(current)
+    current *= (norm0/norm_temp) # pour conserver la norm malgres les troncations
 
-    push!(maxlink, maxlink_temp)
+    push!(maxlink, maxlinkdim(current))
     push!(entropies, operator_entropy(current, bond))
     push!(overlaps, overlap(current, ψ0))
+    push!(norms, norm_temp)
 
     if layer_idx % max(1, nlayers ÷ 10)==0
-        norm_temp = norm(current)
-        push!(norms, norm_temp)
-
-        if !isapprox(norm_temp, norm0; rtol=1e-3) # on verifie que la norme ne diverge pas trop
-          println("layer : $layer_idx /$nlayers Break cause norm = $norm_temp ≠ $norm0")
-          break
-        end
-
         println("layer : $layer_idx /$nlayers complete")
     end
   end
@@ -114,5 +118,8 @@ function propagate_layerbylayer(
 
   return current, result
 end
+
+
+#  MPS(A,sites;cutoff=cutoff,maxdim=maxdim)
 
 end # module
