@@ -18,6 +18,7 @@ function decode_pauli(pauli_string, num_qubits::Int)
 end
 
 #------------ PauliSum -> Matrix ------------
+#countweight(pstr)
 function compute_matrix(observable::Union{PauliSum, PauliString})
   if typeof(observable) == PauliString{UInt8, Float64}
     observable = PauliSum(observable)
@@ -169,6 +170,58 @@ function propagate_layerbylayer(
   result = Dict("overlap" => overlaps, "S" => entropy, "norm" => norm, "time" => elapsed_time)
  
   return current, result
+end
+
+#------------ Find optimal truncations ------------ 
+
+function find_truncations(tolerance, circuit, observableobservable::Union{PauliSum, PauliString}, nlayers::Int64, parameters=nothing)::Tuple{Int64, Float64}
+  nqubits = observable.nqubits
+  smaller_min_abs_coeff = 1e-10
+  
+  println("----- Max weight TEST -----")
+  max_weight = 3
+
+  overlap_before = [Inf]*(nlayers+1)
+  is_close = false
+  while !is_close
+    println("--- Max weight = $max_weight, Min abs coeff = $smaller_min_abs_coeff ---")
+    pauli_sum, result =  pp.propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff=smaller_min_abs_coeff)
+    overlap = result["overlap"]
+    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
+
+    is_close = isclose_overlap #&& isclose_matrix
+
+    overlap_before = overlap
+    max_weight += 2
+
+    if max_weight > nqubits
+      max_weight = nqubits
+      break
+    end
+  end
+
+  println("----- Min abs coeff TEST -----")
+  min_abs_coeff_power = -2
+
+  overlap_before = [Inf]*(nlayers+1)
+  is_close = false
+  while !is_close
+    println("--- Max weight = $max_weight, Min abs coeff = 1e$min_abs_coeff_power ---")
+    pauli_sum, result =  pp.propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff=1e(min_abs_coeff_power))
+    overlap = result["overlap"]
+    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
+
+    is_close = isclose_overlap #&& isclose_matrix
+
+    overlap_before = overlap
+    min_abs_coeff_power -= 2
+
+    if min_abs_coeff <= smaller_min_abs_coeff
+      break
+    end
+  end
+
+  return max_weight, min_abs_coeff
 end
 
 end # module
