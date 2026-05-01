@@ -1,5 +1,5 @@
 module pauli_propagation_functions
-export decode_pauli, compute_matrix, overlap, pauli_norm, pauli_entropy, operator_entropy, propagate_layerbylayer
+export decode_pauli, compute_matrix, overlap, pauli_norm, pauli_entropy, operator_entropy, applynoiselayer, propagate_layerbylayer
 
 using PauliPropagation
 using PauliPropagation: Xmat, Ymat, Zmat
@@ -117,23 +117,56 @@ function operator_entropy(observable::Union{PauliSum, PauliString}, bond::Int)::
   return entropy
 end
 
+#------------ Noise layer ------------
+function applynoiselayer(psum::PauliSum;depol_strength=0.02, dephase_strength=0.02, noise_level=1.0)
+    """
+    applynoiselayer(psum::PauliSum; depol_strength=0.02, dephase_strength=0.02, noise_level=1.0)
+
+Applies a noise layer to a `PauliSum` by attenuating its coefficients in-place.
+
+The function simulates decoherence by scaling each Pauli string's coefficient based on its weight 
+and the specific types of operators it contains.
+
+# Arguments
+- `psum::PauliSum`: The collection of Pauli operators to be modified.
+- `depol_strength`: The base rate of depolarizing noise (affects all non-identity operators).
+- `dephase_strength`: The base rate of dephasing noise (specifically affects X and Y operators).
+- `noise_level`: A global multiplier to scale the overall noise intensity.
+
+# Mathematical Model
+For each Pauli string, the coefficient is updated as:
+`coeff *= (1 - noise_level * depol_strength)^weight * (1 - noise_level * dephase_strength)^xy_count`
+"""
+    for (pstr, coeff) in psum
+        set!(psum, pstr,
+            coeff*(1-noise_level*depol_strength)^countweight(pstr)*(1-noise_level*dephase_strength)^countxy(pstr))
+    end
+end
+
 #------------ Propagate Layer by layer ------------ 
 function propagate_layerbylayer(
   circuit, 
   observable::Union{PauliSum, PauliString}, 
   nlayers::Int64, 
   parameters=nothing; 
-  max_weight::Integer, 
-  min_abs_coeff::Float64,
-  ψ0::Union{Vector{Float64}, Nothing}=nothing)
+  max_weight::Union{Integer,Nothing}=nothing, 
+  min_abs_coeff::Float64=0.,
+  ψ0::Union{Vector{Float64}, Nothing}=nothing,
+  applyNoise::Bool=false,
+  γ::Union{Float64,Nothing}=nothing
+)
 
   t1 = time()
+  nqubits = observable.nqubits
   ngate_bylayer = size(circuit,1) ÷ nlayers
 
   overlaps, entropy, norm = Float64[], Float64[], Float64[]
 
+  if max_weight === nothing
+      max_weight = nqubits 
+  end
   if ψ0 === nothing
-      ψ0 = append!([1],[0 for _ in 2:(2^observable.nqubits)]) # |0> state
+      ψ0 = append!([1],[0 for _ in 2:(2^nqubits)]) # |0> state
   end
 
   current = PauliPropagation.PauliSum(observable)
@@ -151,7 +184,9 @@ function propagate_layerbylayer(
         parameter = parameters[first_gate_idx:last_gate_idx]
     end
     current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
-
+    if applyNoise
+	applynoiselayer(current; depol_strength=γ, dephase_strength=0, noise_level=1.0)
+    end
     current /= sqrt(pauli_norm(current)) # on divise par la norm pour que \sum |c_\alpha|²=1 malgres les troncations
 
     push!(norm, pauli_norm(current))
@@ -181,7 +216,7 @@ function find_truncations(tolerance, circuit, observableobservable::Union{PauliS
   println("----- Max weight TEST -----")
   max_weight = 3
 
-  overlap_before = [Inf]*(nlayers+1)
+  overlap_before = fill(Inf, (nlayers+1))
   is_close = false
   while !is_close
     println("--- Max weight = $max_weight, Min abs coeff = $smaller_min_abs_coeff ---")
@@ -203,7 +238,7 @@ function find_truncations(tolerance, circuit, observableobservable::Union{PauliS
   println("----- Min abs coeff TEST -----")
   min_abs_coeff_power = -2
 
-  overlap_before = [Inf]*(nlayers+1)
+  overlap_before = fill(Inf, (nlayers+1))
   is_close = false
   while !is_close
     println("--- Max weight = $max_weight, Min abs coeff = 1e$min_abs_coeff_power ---")
