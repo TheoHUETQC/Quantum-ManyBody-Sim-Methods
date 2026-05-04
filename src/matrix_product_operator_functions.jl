@@ -1,9 +1,10 @@
 module mpo_functions
-export compute_matrix, overlap, operator_entropy, propagate_layerbylayer
+export compute_matrix, overlap, operator_entropy, applynoiselayer, propagate_layerbylayer
 
 using ITensors, ITensorMPS
 
 #------------ MPO -> Matrix ------------
+# need to fix this function
 function compute_matrix(mpo::MPO, sites)
     nqubits = length(sites)
 
@@ -50,6 +51,35 @@ function operator_entropy(O::MPO, bond::Int)::Float64
     return compute_entropy(s_vals)
 end
 
+#------------ Noise layer ------------
+function apply_depolarizing_noise(O::MPO, sites_to_noise::Vector{<:Index}, lambda::Float64; cutoff::Float64=1e-8, maxdim::Int=200)
+    O_noisy = copy(O)
+    
+    c0 = 1.0 - (3.0 * lambda / 4.0)
+    c1 = lambda / 4.0
+    
+    # On applique le bruit site par site
+    for s in sites_to_noise
+        # 1. On prépare les portes de Pauli pour ce site précis
+        X = op("X", s)
+        Y = op("Y", s)
+        Z = op("Z", s)
+        
+        # apply_dag=true fait X*O*X, Y*O*Y, Z*O*Z car Pauli est hermitien
+        O_X = apply([X], O_noisy; apply_dag=true, cutoff=cutoff)
+        O_Y = apply([Y], O_noisy; apply_dag=true, cutoff=cutoff)
+        O_Z = apply([Z], O_noisy; apply_dag=true, cutoff=cutoff)
+        
+        # +(A, B; kwargs...) fait A+B avec truncation
+        O_new = +(c0 * O_noisy, c1 * O_X; cutoff=cutoff, maxdim=maxdim)
+        O_new = +(O_new, c1 * O_Y; cutoff=cutoff, maxdim=maxdim)
+        O_new = +(O_new, c1 * O_Z; cutoff=cutoff, maxdim=maxdim)
+        
+        O_noisy = O_new
+    end
+    return O_noisy
+end
+
 #------------ Propagate Layer by layer ------------ 
 function tensor_dag(U::ITensor)::ITensor
   indices = inds(U)
@@ -67,8 +97,9 @@ function propagate_layerbylayer(
     observable::MPO;
     cutoff::Float64=1e-8,
     maxdim::Int=200,
-    bond::Union{Int, Nothing}=nothing,
-    ψ0::Union{MPS, Nothing}=nothing
+    bond::Union{Int, Nothing}=nothing, # for the Entropy
+    ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
+    γ::Float64=0. # for the Noise
     )
   t0 = time()
   nlayers = length(circuit)
@@ -98,13 +129,15 @@ function propagate_layerbylayer(
 
   for (layer_idx, layer) in enumerate(heinseberg_circuit)
     current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
-    norm_temp = norm(current)
-    current *= (norm0/norm_temp) # pour conserver la norm malgres les troncations
+    if !(γ == 0.)
+	    current = apply_depolarizing_noise(current, sites_mps, γ; cutoff, maxdim)
+    end
+    current *= (norm0/norm(current)) # pour conserver la norm malgres les troncations
 
     push!(maxlink, maxlinkdim(current))
     push!(entropies, operator_entropy(current, bond))
     push!(overlaps, overlap(current, ψ0))
-    push!(norms, norm_temp)
+    push!(norms, norm(current))
 
     if layer_idx % max(1, nlayers ÷ 10)==0
         println("layer : $layer_idx /$nlayers complete")
