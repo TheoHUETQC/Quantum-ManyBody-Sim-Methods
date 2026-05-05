@@ -1,5 +1,5 @@
 module mpo_functions
-export compute_matrix, overlap, operator_entropy, applynoiselayer, propagate_layerbylayer
+export compute_matrix, overlap, operator_entropy, applynoiselayer, propagate_layerbylayer, find_truncations
 
 using ITensors, ITensorMPS
 
@@ -60,7 +60,6 @@ function apply_depolarizing_noise(O::MPO, sites_to_noise::Vector{<:Index}, lambd
     
     # On applique le bruit site par site
     for s in sites_to_noise
-        # 1. On prépare les portes de Pauli pour ce site précis
         X = op("X", s)
         Y = op("Y", s)
         Z = op("Z", s)
@@ -99,7 +98,8 @@ function propagate_layerbylayer(
     maxdim::Int=200,
     bond::Union{Int, Nothing}=nothing, # for the Entropy
     ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
-    γ::Float64=0. # for the Noise
+    γ::Float64=0., # for the Noise
+    disable_print::Bool=false
     )
   t0 = time()
   nlayers = length(circuit)
@@ -139,7 +139,7 @@ function propagate_layerbylayer(
     push!(overlaps, overlap(current, ψ0))
     push!(norms, norm(current))
 
-    if layer_idx % max(1, nlayers ÷ 10)==0
+    if layer_idx % max(1, nlayers ÷ 10)==0 && !disable_print
         println("layer : $layer_idx /$nlayers complete")
     end
   end
@@ -152,6 +152,79 @@ function propagate_layerbylayer(
   return current, result
 end
 
+#------------ Find optimal truncations ------------ 
+function find_truncations(
+  tolerance::Float64, 
+  circuit::Vector{Vector{ITensor}}, 
+  observable::MPO,;
+  bond::Union{Int, Nothing}=nothing, # for the Entropy
+  ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
+  γ::Float64=0. # for the Noise
+  )::Tuple{Int64, Float64}
+
+  dim = 2^length(observable)
+  nlayers = length(circuit)
+
+  smaller_cutoff = 1e-10
+  
+  println("----- Max Dim TEST -----")
+  maxdim = 8
+  
+  overlap_before = fill(Inf, (nlayers+1))
+  is_close = false
+  while !is_close
+    println("--- Max weight = $maxdim, Min abs coeff = $smaller_cutoff ---")
+    mpo, result =  propagate_layerbylayer(circuit, observable; cutoff=smaller_cutoff, maxdim, bond, ψ0, γ, disable_print=true)
+    overlap = result["overlap"]
+    #entropy = result["S"]
+    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
+    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
+    #isclose_entropy = isapprox(mpo, mpo_before; rtol=tolerance)
+
+    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
+    if is_close
+      break
+    end
+
+    overlap_before = overlap
+    maxdim += 3
+
+    if maxdim > dim
+      maxdim = dim
+      break
+    end
+  end
+
+  println("----- Cutoff TEST -----")
+  cutoff_power = -2
+
+  overlap_before = fill(Inf, (nlayers+1))
+  is_close = false
+  while !is_close
+    println("--- Max weight = $maxdim, Min abs coeff = 1e$cutoff_power ---")
+    cutoff = 10^float(cutoff_power)
+    mpo, result =  propagate_layerbylayer(circuit, observable; cutoff, maxdim, bond, ψ0, γ, disable_print=true)
+    overlap = result["overlap"]
+    #entropy = result["S"]
+    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
+    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
+    #isclose_entropy = isapprox(mpo, mpo_before; rtol=tolerance)
+
+    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
+    if is_close
+      break
+    end
+
+    overlap_before = overlap
+    cutoff_power -= 2
+
+    if cutoff <= smaller_cutoff
+      return maxdim, smaller_cutoff
+    end
+  end
+  cutoff = 10^float(cutoff_power)
+  return maxdim, cutoff
+end
 
 #  MPS(A,sites;cutoff=cutoff,maxdim=maxdim)
 
