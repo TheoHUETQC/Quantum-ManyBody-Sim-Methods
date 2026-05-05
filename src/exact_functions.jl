@@ -37,7 +37,9 @@ function propagate_layerbylayer(
     circuit::Vector{Vector{Matrix}},
     observable::Matrix;
     bond::Union{Int, Nothing}=nothing,
-    ψ0::Union{Vector{Float64}, Nothing}=nothing)
+    ψ0::Union{Vector{Float64}, Nothing}=nothing,
+    disable_print::Bool=false
+    )
 
     t = time()
     dim = size(observable, 1)
@@ -67,7 +69,7 @@ function propagate_layerbylayer(
         push!(overlaps, overlap(current, ψ0))
         push!(norms, norm(current))
 
-        if layer_idx % max(1, nlayers ÷ 10)==0
+        if layer_idx % max(1, nlayers ÷ 10)==0 && !disable_print
             println("layer : $layer_idx /$nlayers complete")
         end
     end
@@ -80,44 +82,7 @@ function propagate_layerbylayer(
     return current, result
 end
 
-#------------ Circuit and observable for test ------------ 
-function circuit_TFIM(nqubits::Int64, dt::Float64, nlayers::Int64)
-    """
-    H = ∑XᵢXⱼ
-    """
-    Id = ComplexF64[1 0; 0 1]
-    X  = ComplexF64[0 1; 1 0]
-
-    topology = [(i, i+1) for i in 1:(nqubits-1)]
-
-    dim = 2^nqubits
-    H = zeros(ComplexF64, dim, dim)
-
-    for (qubit_i, qubit_j) in topology
-
-        term = [1.0 + 0.0im;;] 
-        
-        for k in 1:nqubits
-            if k == qubit_i || k == qubit_j
-                term = kron(term, X)
-            else
-                term = kron(term, Id)
-            end
-        end
-        H += term
-    end
-
-    U = exp(-1im * dt * H / 2)
-
-    layer = [U]
-    circuit_exact = Vector{Vector{Matrix}}()
-    
-    for _ in 1:nlayers
-        push!(circuit_exact, layer)
-    end
-
-    return circuit_exact
-end
+#------------ Observable for test ------------ 
 
 function get_Zi(nqubits::Int64, i::Int64)
     """
