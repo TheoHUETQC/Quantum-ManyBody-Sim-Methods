@@ -152,10 +152,11 @@ function propagate_layerbylayer(
   min_abs_coeff::Float64=0.,
   k::Int64=2, # for the Entropy
   ψ0::Union{Vector{Float64}, Nothing}=nothing, # for the Overlap
-  γ::Float64=0. # for the Noise
+  γ::Float64=0., # for the Noise
+  disable_print::Bool=false
 )
 
-  t1 = time()
+  t = time()
   nqubits = observable.nqubits
   ngate_bylayer = size(circuit,1) ÷ nlayers
 
@@ -193,12 +194,12 @@ function propagate_layerbylayer(
     push!(entropy, renyi_entropy(current; k))
 
     j=nlayers-i+1
-    if j % max(1, nlayers÷10)==0
+    if j % max(1, nlayers÷10)==0 && !disable_print
       println("layer : ",j,"/",nlayers," complete")
     end
   end
 
-  elapsed_time = time() - t1
+  elapsed_time = time() - t
   println("Time taken by pp.propagate_layerbylayer: ", elapsed_time, " seconds")
 
   result = Dict("overlap" => overlaps, "S" => entropy, "norm" => norm, "time" => elapsed_time)
@@ -228,11 +229,14 @@ function find_truncations(
   is_close = false
   while !is_close
     println("--- Max weight = $max_weight, Min abs coeff = $smaller_min_abs_coeff ---")
-    pauli_sum, result =  propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff=smaller_min_abs_coeff, ψ0, k, γ)
+    pauli_sum, result =  propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff=smaller_min_abs_coeff, ψ0, k, γ, disable_print=true)
     overlap = result["overlap"]
+    #entropy = result["S"]
     isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
+    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
+    #isclose_entropy = isapprox(pauli_sum, pauli_sum_before; rtol=tolerance)
 
-    is_close = isclose_overlap #&& isclose_matrix
+    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
     if is_close
       break
     end
@@ -254,11 +258,14 @@ function find_truncations(
   while !is_close
     println("--- Max weight = $max_weight, Min abs coeff = 1e$min_abs_coeff_power ---")
     min_abs_coeff = 10^float(min_abs_coeff_power)
-    pauli_sum, result =  propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff, ψ0, k, γ)
+    pauli_sum, result =  propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff, ψ0, k, γ, disable_print=true)
     overlap = result["overlap"]
+    #entropy = result["S"]
     isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
+    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
+    #isclose_entropy = isapprox(pauli_sum, pauli_sum_before; rtol=tolerance)
 
-    is_close = isclose_overlap #&& isclose_matrix
+    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
     if is_close
       break
     end
