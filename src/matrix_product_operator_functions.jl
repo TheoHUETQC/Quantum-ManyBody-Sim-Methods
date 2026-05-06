@@ -91,6 +91,29 @@ function tensor_dag(U::ITensor)::ITensor
   return U_dag 
 end
 
+function propagate_1layer(
+  layer::Union{ITensor, Vector{ITensor}}, 
+  current::MPO,
+  norm0::Float64;
+  maxdim::Union{Nothing, Integer}=nothing, 
+  cutoff::Float64=0.,
+  γ::Float64=0., # for the Noise
+  )::MPO
+
+  if maxdim === nothing
+    maxdim = 2^length(current)
+  end
+
+  sites_mps = [siteind(current, i; plev=0) for i in 1:length(current)]
+
+  current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
+  if !(γ == 0.)
+    current = apply_depolarizing_noise(current, sites_mps, γ; cutoff, maxdim)
+  end
+  current *= (norm0/norm(current)) # pour conserver la norm malgres les troncations
+  return current
+end
+
 function propagate_layerbylayer(
     circuit::Vector{Vector{ITensor}},
     observable::MPO;
@@ -128,11 +151,7 @@ function propagate_layerbylayer(
   push!(norms, norm0)
 
   for (layer_idx, layer) in enumerate(heinseberg_circuit)
-    current = apply(layer, current; apply_dag=true, cutoff=cutoff, maxdim=maxdim) # apply(U,0,apply_dag=true) fait U O U+ donc on applique d'abord le dag a layer pour avoir +U O U
-    if !(γ == 0.)
-	    current = apply_depolarizing_noise(current, sites_mps, γ; cutoff, maxdim)
-    end
-    current *= (norm0/norm(current)) # pour conserver la norm malgres les troncations
+    current = propagate_1layer(layer, current, norm0; maxdim, cutoff, γ)
 
     push!(maxlink, maxlinkdim(current))
     push!(entropies, operator_entropy(current, bond))
@@ -157,72 +176,77 @@ function find_truncations(
   tolerance::Float64, 
   circuit::Vector{Vector{ITensor}}, 
   observable::MPO,;
-  bond::Union{Int, Nothing}=nothing, # for the Entropy
-  ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
-  γ::Float64=0. # for the Noise
+  γ::Float64=0., # for the Noise
+  disable_print::Bool=false
   )::Tuple{Int64, Float64}
 
-  dim = 2^length(observable)
+  N = length(observable)
+  dim = 2^N
   nlayers = length(circuit)
+  norm0 = norm(observable)
 
-  smaller_cutoff = 1e-10
+  sites_mps = [siteind(observable, i; plev=0) for i in 1:N]
+  init_state = ["Up" for _ in 1:N] # "Dn" pour down
+  ψ0 = MPS(sites_mps, init_state)
+
+  heinseberg_circuit = [reverse(tensor_dag.(layer)) for layer in reverse(circuit)]
+
+  smaller_cutoff = 1e-13
   
-  println("----- Max Dim TEST -----")
-  maxdim = 8
+  # ----- Max Dim TEST -----
+  maxdim = 3
   
-  overlap_before = fill(Inf, (nlayers+1))
-  is_close = false
-  while !is_close
-    println("--- Max weight = $maxdim, Min abs coeff = $smaller_cutoff ---")
-    mpo, result =  propagate_layerbylayer(circuit, observable; cutoff=smaller_cutoff, maxdim, bond, ψ0, γ, disable_print=true)
-    overlap = result["overlap"]
-    #entropy = result["S"]
-    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
-    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
-    #isclose_entropy = isapprox(mpo, mpo_before; rtol=tolerance)
+  overlaps = fill(Inf, nlayers)
+  isclose_overlap = false
+  while !isclose_overlap
+    overlaps_before = overlaps
+    maxdim += max(1, dim÷10)
 
-    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
-    if is_close
-      break
-    end
-
-    overlap_before = overlap
-    maxdim += 3
-
-    if maxdim > dim
+    if maxdim >= dim
       maxdim = dim
       break
     end
-  end
 
-  println("----- Cutoff TEST -----")
-  cutoff_power = -2
-
-  overlap_before = fill(Inf, (nlayers+1))
-  is_close = false
-  while !is_close
-    println("--- Max weight = $maxdim, Min abs coeff = 1e$cutoff_power ---")
-    cutoff = 10^float(cutoff_power)
-    mpo, result =  propagate_layerbylayer(circuit, observable; cutoff, maxdim, bond, ψ0, γ, disable_print=true)
-    overlap = result["overlap"]
-    #entropy = result["S"]
-    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
-    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
-    #isclose_entropy = isapprox(mpo, mpo_before; rtol=tolerance)
-
-    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
-    if is_close
-      break
+    current = copy(observable)
+    overlaps = Float64[]
+    for layer in heinseberg_circuit
+      current = propagate_1layer(layer, current, norm0; maxdim, cutoff=smaller_cutoff, γ)
+      push!(overlaps, overlap(current, ψ0))
     end
 
-    overlap_before = overlap
-    cutoff_power -= 2
+    isclose_overlap = isapprox(overlaps, overlaps_before; rtol=tolerance)
+  end
+
+  # ----- Cutoff TEST -----
+  cutoff_power = -1
+
+  overlaps = fill(Inf, nlayers)
+  isclose_overlap = false
+  while !isclose_overlap
+    overlaps_before = overlaps
+    cutoff_power -= 1
+    cutoff = 10^float(cutoff_power)
 
     if cutoff <= smaller_cutoff
+      if !disable_print
+        println("Optimal truncations find : (Maxdim=$maxdim, Cutoff=$smaller_cutoff)")
+      end
       return maxdim, smaller_cutoff
     end
+    
+    current = copy(observable)
+    overlaps = Float64[]
+    for layer in heinseberg_circuit
+      current = propagate_1layer(layer, current, norm0; maxdim, cutoff, γ)
+      push!(overlaps, overlap(current, ψ0))
+    end
+
+    isclose_overlap = isapprox(overlaps, overlaps_before; rtol=tolerance)
   end
   cutoff = 10^float(cutoff_power)
+  if !disable_print
+    println("Optimal truncations find : (Maxdim=$maxdim, Cutoff=1e$cutoff_power)")
+  end
   return maxdim, cutoff
 end
 

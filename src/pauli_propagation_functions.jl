@@ -143,11 +143,49 @@ function applynoiselayer(psum::PauliSum;depol_strength=0.02, dephase_strength=0.
 end
 
 #------------ Propagate Layer by layer ------------ 
+function get_layer(
+  layer_idx::Integer,
+  ngate_bylayer::Integer, 
+  circuit::Union{Gate, Vector{Gate}}, 
+  parameters::Union{Nothing, Vector{Float64}}
+  )
+  first_gate_idx = ((layer_idx-1)*ngate_bylayer)+1; last_gate_idx = (layer_idx * ngate_bylayer)
+  layer_gates = circuit[first_gate_idx:last_gate_idx]
+
+  if parameters === nothing
+    parameter = nothing
+  else
+    parameter = parameters[first_gate_idx:last_gate_idx]
+  end
+  return layer_gates, parameter
+end
+
+function propagate_1layer(
+  layer_gates::Union{Gate, Vector{Gate}}, 
+  current::Union{PauliSum, PauliString},
+  parameter::Union{Nothing, Vector{Float64}};
+  max_weight::Union{Nothing, Integer}=nothing, 
+  min_abs_coeff::Float64=0.,
+  γ::Float64=0., # for the Noise
+  )::PauliSum
+
+  if max_weight === nothing
+    max_weight = current.nqubits 
+  end
+
+  current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
+  if !(γ == 0.)
+	  applynoiselayer(current; depol_strength=1, dephase_strength=0, noise_level=γ)
+  end
+  current /= sqrt(pauli_norm(current)) # on divise par la norm pour que \sum |c_\alpha|²=1 malgres les troncations
+  return current
+end
+
 function propagate_layerbylayer(
-  circuit, 
+  circuit::Union{Gate, Vector{Gate}}, 
   observable::Union{PauliSum, PauliString}, 
   nlayers::Int64, 
-  parameters=nothing; 
+  parameters::Union{Nothing, Vector{Float64}}=nothing; 
   max_weight::Union{Integer,Nothing}=nothing, 
   min_abs_coeff::Float64=0.,
   k::Int64=2, # for the Entropy
@@ -174,28 +212,17 @@ function propagate_layerbylayer(
   push!(entropy, renyi_entropy(current; k))
   push!(norm, pauli_norm(current))
   
-  for i in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\
-    first_gate_idx = ((i-1)*ngate_bylayer)+1; last_gate_idx = (i * ngate_bylayer)
-    layer_gates = circuit[first_gate_idx:last_gate_idx]
+  for layer_idx in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\ (Heisenberg picture)
+    layer_gates, parameter = get_layer(layer_idx, ngate_bylayer, circuit, parameters)
+    current = propagate_1layer(layer_gates, current, parameter; max_weight, min_abs_coeff, γ)
 
-    if parameters === nothing
-      parameter = nothing
-    else
-      parameter = parameters[first_gate_idx:last_gate_idx]
-    end
-    current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
-    if !(γ == 0.)
-	    applynoiselayer(current; depol_strength=1, dephase_strength=0, noise_level=γ)
-    end
-    current /= sqrt(pauli_norm(current)) # on divise par la norm pour que \sum |c_\alpha|²=1 malgres les troncations
-    
     push!(norm, pauli_norm(current))
     push!(overlaps, overlap(current, ψ0))
     push!(entropy, renyi_entropy(current; k))
 
-    j=nlayers-i+1
-    if j % max(1, nlayers÷10)==0 && !disable_print
-      println("layer : ",j,"/",nlayers," complete")
+    step=nlayers-layer_idx+1
+    if step % max(1, nlayers÷10)==0 && !disable_print
+      println("layer : ",step,"/",nlayers," complete")
     end
   end
 
@@ -208,76 +235,82 @@ function propagate_layerbylayer(
 end
 
 #------------ Find optimal truncations ------------ 
-
 function find_truncations(
   tolerance::Float64, 
-  circuit, observable::Union{PauliSum, PauliString}, 
+  circuit::Union{Gate, Vector{Gate}}, 
+  observable::Union{PauliSum, PauliString}, 
   nlayers::Int64, 
-  parameters=nothing;
-  k::Int64=2, # for the Entropy
-  ψ0::Union{Vector{Float64}, Nothing}=nothing, # for the Overlap
-  γ::Float64=0. # for the Noise
+  parameters::Union{Nothing, Vector{Float64}}=nothing;
+  γ::Float64=0., # for the Noise
+  disable_print::Bool=false
   )::Tuple{Int64, Float64}
 
   nqubits = observable.nqubits
-  smaller_min_abs_coeff = 1e-10
+  ngate_bylayer = size(circuit,1) ÷ nlayers
+  ψ0 = append!([1],[0 for _ in 2:(2^nqubits)]) # |0> state
   
-  println("----- Max weight TEST -----")
-  max_weight = 3
+  smaller_min_abs_coeff = 1e-13
+  
+  heisenberg_circuit, parameter_list = Vector{Gate}[], Union{Float64,Nothing}[]
+  for layer_idx in nlayers:-1:1
+    layer_gates, parameter = get_layer(layer_idx, ngate_bylayer, circuit, parameters)
+    push!(heisenberg_circuit, layer_gates)
+    push!(parameter_list, parameter)
+  end
 
-  overlap_before = fill(Inf, (nlayers+1))
-  is_close = false
-  while !is_close
-    println("--- Max weight = $max_weight, Min abs coeff = $smaller_min_abs_coeff ---")
-    pauli_sum, result =  propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff=smaller_min_abs_coeff, ψ0, k, γ, disable_print=true)
-    overlap = result["overlap"]
-    #entropy = result["S"]
-    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
-    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
-    #isclose_entropy = isapprox(pauli_sum, pauli_sum_before; rtol=tolerance)
+  # ----- Max weight TEST -----
+  max_weight = 2 #+1 for the first test
 
-    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
-    if is_close
-      break
-    end
+  overlaps = fill(Inf, nlayers)
 
-    overlap_before = overlap
-    max_weight += 2
+  isclose_overlap = false
+  while !isclose_overlap
+    overlaps_before = overlaps
+    max_weight += max(1, nqubits÷10)
 
-    if max_weight > nqubits
+    if max_weight >= nqubits
       max_weight = nqubits
       break
     end
+
+    current = observable
+    overlaps = Float64[]
+    for i in 1:nlayers
+      current = propagate_1layer(heisenberg_circuit[i], current, parameter_list[i]; max_weight, min_abs_coeff=smaller_min_abs_coeff, γ)
+      push!(overlaps, overlap(current, ψ0))
+    end
+    isclose_overlap = isapprox(overlaps, overlaps_before; rtol=tolerance)
   end
 
-  println("----- Min abs coeff TEST -----")
-  min_abs_coeff_power = -2
+  # ----- Min abs coeff TEST -----
+  min_abs_coeff_power = -1 #-1 for the first test
 
-  overlap_before = fill(Inf, (nlayers+1))
-  is_close = false
-  while !is_close
-    println("--- Max weight = $max_weight, Min abs coeff = 1e$min_abs_coeff_power ---")
+  overlaps = fill(Inf, nlayers)
+  isclose_overlap = false
+  while !isclose_overlap
+    overlaps_before = overlaps
+    min_abs_coeff_power -= 1
     min_abs_coeff = 10^float(min_abs_coeff_power)
-    pauli_sum, result =  propagate_layerbylayer(circuit, observable, nlayers, parameters; max_weight, min_abs_coeff, ψ0, k, γ, disable_print=true)
-    overlap = result["overlap"]
-    #entropy = result["S"]
-    isclose_overlap = isapprox(overlap, overlap_before; rtol=tolerance)
-    #isclose_matrix = isapprox(entropy, entropy_before; rtol=tolerance)
-    #isclose_entropy = isapprox(pauli_sum, pauli_sum_before; rtol=tolerance)
-
-    is_close = isclose_overlap #&& isclose_matrix && isclose_entropy
-    if is_close
-      break
-    end
-
-    overlap_before = overlap
-    min_abs_coeff_power -= 2
 
     if min_abs_coeff <= smaller_min_abs_coeff
+      if !disable_print
+        println("Optimal truncations find : (Max weight=$max_weight, Min abs coeff=1e$smaller_min_abs_coeff)")
+      end
       return max_weight, smaller_min_abs_coeff
     end
+
+    current = observable
+    overlaps = Float64[]
+    for i in 1:nlayers
+      current = propagate_1layer(heisenberg_circuit[i], current, parameter_list[i]; max_weight, min_abs_coeff, γ)
+      push!(overlaps, overlap(current, ψ0))
+    end
+    isclose_overlap = isapprox(overlaps, overlaps_before; rtol=tolerance)
   end
   min_abs_coeff = 10^float(min_abs_coeff_power)
+  if !disable_print
+    println("Optimal truncations find : (Max weight=$max_weight, Min abs coeff=1e$min_abs_coeff_power)")
+  end
   return max_weight, min_abs_coeff
 end
 
