@@ -46,7 +46,7 @@ end
 # ======================  MFIM Circuit ======================  
 
 # ------------ Hamiltonien local h_{j,j+1} ------------
-function build_two_site_MFIM_hamiltonian(j::Int64, N::Int64, g::Float64=0.5, h::Float64=0.5)
+function build_two_site_MFIM_hamiltonian(sites, j::Int64, N::Int64, g::Float64=0.5, h::Float64=0.5)
   s1 = sites[j]
   s2 = sites[j + 1]
 
@@ -69,11 +69,11 @@ function build_two_site_MFIM_hamiltonian(j::Int64, N::Int64, g::Float64=0.5, h::
 end
 
 # ------------ Construction des gates TEBD ------------
-function build_TEBD_gates_hj_MFIM(τ::Float64, N::Int64, g::Float64=0.5, h::Float64=0.5)
+function build_TEBD_gates_hj_MFIM(sites, τ::Float64, N::Int64, g::Float64=0.5, h::Float64=0.5)
   gates_odd = ITensor[]
   gates_even = ITensor[]
   for j in 1:(N-1)
-      hj = build_two_site_MFIM_hamiltonian(j, N, g, h)
+      hj = build_two_site_MFIM_hamiltonian(sites, j, N, g, h)
       if isodd(j)
         Gj = exp(-im * τ / 2 * hj)
         push!(gates_odd, Gj)
@@ -87,13 +87,14 @@ end
 
 # ------------ MFIM Circuit for mpo ------------
 function mpo_compute_MFIM_circuit(Nqubits::Int64, nlayers::Int64, τ::Float64, g::Float64=0.5, h::Float64=0.5)
-  gates_odd, gates_even = build_TEBD_gates_hj_MFIM(τ, Nqubits, g, h)
+  sites = ITensors.siteinds("S=1/2", Nqubits)
+  gates_odd, gates_even = build_TEBD_gates_hj_MFIM(sites, τ, Nqubits, g, h)
 
   # On crée une seule liste ordonnée pour un pas de Trotter complet
   # Ordre : Odd (τ/2) -> Even (τ) -> Odd (τ/2)
   one_step_layer = vcat(gates_odd, gates_even, gates_odd)
 
-  return [one_step_layer for _ in 1:nlayers]
+  return [one_step_layer for _ in 1:nlayers], sites
 end
 
 # ======================  TFIM Circuit ====================== 
