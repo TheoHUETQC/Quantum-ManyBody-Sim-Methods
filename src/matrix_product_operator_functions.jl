@@ -4,22 +4,19 @@ export compute_matrix, overlap, operator_entropy, applynoiselayer, propagate_lay
 using ITensors, ITensorMPS
 
 #------------ MPO -> Matrix ------------
-# need to fix this function
 function compute_matrix(mpo::MPO, sites)
-    nqubits = length(sites)
+  ITensors.set_warn_order(20) # Increase the warning threshold to avoid the ITensor order warning
+  nqubits = length(sites)
 
-    Zitensor = ITensor(1.)
-    for i = 1:nqubits
-      Zitensor *= mpo[i]
-    end
+  tensor = contract(mpo) # Contract the MPO into a single ITensor
 
-    row_indices = [sites[i]' for i in reverse(1:nqubits)]
-    col_indices = [sites[i]  for i in reverse(1:nqubits)]
+  row_indices = [sites[j]' for j in reverse(1:nqubits)]
+  col_indices = [sites[j]  for j in reverse(1:nqubits)]
     
-    tensor_array = Array(Zitensor, row_indices..., col_indices...)
+  tensor_array = Array(tensor, row_indices..., col_indices...)
 
-    dim = 2^nqubits
-    return reshape(tensor_array, dim, dim)
+  dim = 2^nqubits
+  return reshape(tensor_array, dim, dim)
 end
 
 #------------ Overlap with a state psi ------------
