@@ -16,6 +16,7 @@ function compute_matrix(mpo::MPO, sites)
   tensor_array = Array(tensor, row_indices..., col_indices...)
 
   dim = 2^nqubits
+  ITensors.reset_warn_order()
   return reshape(tensor_array, dim, dim)
 end
 
