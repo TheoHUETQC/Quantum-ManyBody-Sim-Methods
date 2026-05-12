@@ -163,7 +163,7 @@ end
 function propagate_1layer(
   layer_gates::Union{Gate, Vector{Gate}}, 
   current::Union{PauliSum, PauliString},
-  parameter::Union{Nothing, Vector{Float64}};
+  parameter::Union{Nothing, Float64, Vector{Float64}};
   max_weight::Union{Nothing, Integer}=nothing, 
   min_abs_coeff::Float64=0.,
   γ::Float64=0., # for the Noise
@@ -251,7 +251,7 @@ function find_truncations(
   
   smaller_min_abs_coeff = 1e-13
   
-  heisenberg_circuit, parameter_list = Vector{Gate}[], Union{Float64,Nothing}[]
+  heisenberg_circuit, parameter_list = Vector{Gate}[], Union{Float64, Vector{Float64},Nothing}[]
   for layer_idx in nlayers:-1:1
     layer_gates, parameter = get_layer(layer_idx, ngate_bylayer, circuit, parameters)
     push!(heisenberg_circuit, layer_gates)
