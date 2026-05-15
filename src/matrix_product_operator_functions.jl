@@ -115,8 +115,8 @@ end
 function propagate_layerbylayer(
     circuit::Vector{Vector{ITensor}},
     observable::MPO;
-    cutoff::Float64=1e-8,
-    maxdim::Int=200,
+    cutoff::Float64=0.,
+    maxdim::Union{Int, Nothing}=nothing,
     bond::Union{Int, Nothing}=nothing, # for the Entropy
     ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
     γ::Float64=0., # for the Noise
@@ -127,34 +127,35 @@ function propagate_layerbylayer(
   
   maxlink, entropies, norms, overlaps = Int[], Float64[], Float64[], Float64[]
 
+  if maxdim === nothing
+    maxdim = length(observable)
+  end
+
   current = copy(observable)
   heinseberg_circuit = [reverse(tensor_dag.(layer)) for layer in reverse(circuit)]
   
-  sites_mps = [siteind(current, i; plev=0) for i in 1:length(current)]
-
-  N = length(sites_mps)
-  if bond === nothing 
-    bond = N ÷ 2 +1 # L'entropie est mesurée au milieu de la chaine par defaut
+  if bond != nothing
+    push!(entropies, operator_entropy(observable, bond))
+  end
+  if ψ0 != nothing
+    push!(overlaps, overlap(observable, ψ0))
   end
   
-  if ψ0 === nothing
-    init_state = ["Up" for _ in 1:N] # "Dn" pour down
-    ψ0 = MPS(sites_mps, init_state)
-  end
-
   norm0 = norm(observable)
-  push!(maxlink, maxlinkdim(observable))
-  push!(entropies, operator_entropy(observable, bond))
-  push!(overlaps, overlap(observable, ψ0))
   push!(norms, norm0)
+  push!(maxlink, maxlinkdim(observable))
 
   for (layer_idx, layer) in enumerate(heinseberg_circuit)
     current = propagate_1layer(layer, current, norm0; maxdim, cutoff, γ)
 
-    push!(maxlink, maxlinkdim(current))
-    push!(entropies, operator_entropy(current, bond))
-    push!(overlaps, overlap(current, ψ0))
+    if bond != nothing
+      push!(entropies, operator_entropy(current, bond))
+    end
+    if ψ0 != nothing
+      push!(overlaps, overlap(current, ψ0))
+    end
     push!(norms, norm(current))
+    push!(maxlink, maxlinkdim(current))
 
     if layer_idx % max(1, nlayers ÷ 10)==0 && !disable_print
         println("layer : $layer_idx /$nlayers complete")
@@ -164,7 +165,7 @@ function propagate_layerbylayer(
   elapsed_time = time() - t0
   println("Time taken by mpo_functions.propagate_layerbylayer: ", elapsed_time, " seconds")
 
-  result = Dict("maxlink" => maxlink, "S" => entropies, "norm" => norms, "overlap" => overlaps, "time"=> elapsed_time)
+  result = Dict("maxlink" => maxlink, "norm" => norms, "S" => entropies, "overlap" => overlaps, "time"=> elapsed_time)
 
   return current, result
 end

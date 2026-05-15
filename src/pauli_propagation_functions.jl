@@ -185,40 +185,44 @@ function propagate_layerbylayer(
   circuit::Union{Gate, Vector{Gate}}, 
   observable::Union{PauliSum, PauliString}, 
   nlayers::Int64, 
-  parameters::Union{Nothing, Vector{Float64}}=nothing; 
+  parameters::Union{Vector{Float64}, Nothing}=nothing; 
   max_weight::Union{Integer,Nothing}=nothing, 
   min_abs_coeff::Float64=0.,
-  k::Int64=2, # for the Entropy
+  k::Union{Int64, Nothing}=nothing, # for the Entropy
   ψ0::Union{Vector{Float64}, Nothing}=nothing, # for the Overlap
   γ::Float64=0., # for the Noise
   disable_print::Bool=false
 )
 
   t = time()
-  nqubits = observable.nqubits
   ngate_bylayer = size(circuit,1) ÷ nlayers
 
   overlaps, entropy, norm = Float64[], Float64[], Float64[]
 
   if max_weight === nothing
-    max_weight = nqubits 
-  end
-  if ψ0 === nothing
-    ψ0 = append!([1],[0 for _ in 2:(2^nqubits)]) # |0> state
+    max_weight = observable.nqubits 
   end
 
   current = PauliPropagation.PauliSum(observable)
-  push!(overlaps, overlap(current, ψ0))
-  push!(entropy, renyi_entropy(current; k))
+
+  if k != nothing
+    push!(entropy, renyi_entropy(current; k))
+  end
+  if ψ0 != nothing
+    push!(overlaps, overlap(current, ψ0))
+  end
   push!(norm, pauli_norm(current))
   
   for layer_idx in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\ (Heisenberg picture)
     layer_gates, parameter = get_layer(layer_idx, ngate_bylayer, circuit, parameters)
     current = propagate_1layer(layer_gates, current, parameter; max_weight, min_abs_coeff, γ)
-
+    if k != nothing
+      push!(entropy, renyi_entropy(current; k))
+    end
+    if ψ0 != nothing
+      push!(overlaps, overlap(current, ψ0))
+    end
     push!(norm, pauli_norm(current))
-    push!(overlaps, overlap(current, ψ0))
-    push!(entropy, renyi_entropy(current; k))
 
     step=nlayers-layer_idx+1
     if step % max(1, nlayers÷10)==0 && !disable_print
@@ -229,7 +233,7 @@ function propagate_layerbylayer(
   elapsed_time = time() - t
   println("Time taken by pp.propagate_layerbylayer: ", elapsed_time, " seconds")
 
-  result = Dict("overlap" => overlaps, "S" => entropy, "norm" => norm, "time" => elapsed_time)
+  result = Dict("norm" => norm, "overlap" => overlaps, "S" => entropy, "time" => elapsed_time)
  
   return current, result
 end

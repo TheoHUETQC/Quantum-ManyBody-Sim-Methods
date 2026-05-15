@@ -42,31 +42,29 @@ function propagate_layerbylayer(
     )
 
     t = time()
-    dim = size(observable, 1)
     nlayers = length(circuit)
 
     entropies, norms, overlaps = Float64[], Float64[], Float64[]
 
-    if bond === nothing
-      N = Int(log2(dim)) # dim = 2^N
-      bond = N ÷ 2 +1 # L'entropie est mesurée au milieu de la chaine par defaut
+    if bond =! nothing
+      push!(entropies, operator_entropy(observable, bond))
     end
-    
-    if ψ0 === nothing
-        ψ0 = append!([1.],[0. for _ in 2:dim]) # |0> state
+    if ψ0 =! nothing
+      push!(overlaps, overlap(observable, ψ0))
     end
-
-    push!(entropies, operator_entropy(observable, bond))
-    push!(overlaps, overlap(observable, ψ0))
     push!(norms, norm(observable))
 
     current = copy(observable)
     for (layer_idx, layer) in enumerate(reverse(circuit))
         for gate in reverse(layer)
-            current = gate' * current * gate
+          current = gate' * current * gate
         end
-        push!(entropies, operator_entropy(current, bond))
-        push!(overlaps, overlap(current, ψ0))
+        if bond =! nothing
+          push!(entropies, operator_entropy(current, bond))
+        end
+        if ψ0 =! nothing
+          push!(overlaps, overlap(current, ψ0))
+        end
         push!(norms, norm(current))
 
         if layer_idx % max(1, nlayers ÷ 10)==0 && !disable_print
@@ -77,7 +75,7 @@ function propagate_layerbylayer(
     elapsed_time = time() - t
     println("Time taken by ext.propagate_layerbylayer: ", elapsed_time, " seconds")
 
-    result = Dict("S" => entropies, "norm" => norms, "overlap" => overlaps, "time" => elapsed_time)
+    result = Dict("norm" => norms, "S" => entropies, "overlap" => overlaps, "time" => elapsed_time)
 
     return current, result
 end
