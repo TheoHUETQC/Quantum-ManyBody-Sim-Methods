@@ -1,6 +1,6 @@
 # Quantum-ManyBody-Sim-Methods
 
-Numerical methods for the study of **quantum many-body dynamics**. This repository was developed during a Master 2 Internship in Theoretical Physics under the supervision of Dr. Jacopo De Nardis (Collège de France / Université de Cergy CYU).
+Numerical methods for the study of **quantum many-body dynamics**. This repository was developed during a Master 2 Internship in Theoretical Physics under the supervision of Dr. Jacopo De Nardis (*Collège de France / Université de Cergy CYU*).
 
 Most simulations are implemented in **Julia** (for high-performance linear algebra) or **Python**.
 
@@ -34,18 +34,18 @@ Quantum-ManyBody-Sim-Methods/
 The repository abstracts its simulation architectures into dedicated Julia files within `src/`. Each module is paired with an independent markdown guide in `docs/` detailing its mathematical background, API syntax, and parameter choices:
 
 * **Exact Simulation**
-* `src/exact_functions.jl` | Guide: `docs/exact_guide.md`
-* *Description:* Computes exact, uncompressed operator evolution via dense matrix operations. Ideal for validating approximate methods on small system sizes (typically less than 12 qubits) before scaling up.
+    * `src/exact_functions.jl` | Guide: `docs/exact_guide.md`
+    * *Description:* Computes exact, uncompressed operator evolution via dense matrix operations. Ideal for validating approximate methods on small system sizes (typically less than 12 qubits) before scaling up.
 
 
 * **Matrix Product Operators (MPO)**
-* `src/matrix_product_operator_functions.jl` | Guide: `docs/mpo_guide.md`
-* *Description:* Tracks operator growth in the Heisenberg picture using Tensor Networks. It includes tools for local depolarizing noise injection and automated sensitivity analysis to discover optimal bond dimension limitations.
+    * `src/matrix_product_operator_functions.jl` | Guide: `docs/mpo_guide.md`
+    * *Description:* Tracks operator growth in the Heisenberg picture using Tensor Networks. It includes tools for local depolarizing noise injection and automated sensitivity analysis to discover optimal bond dimension limitations.
 
 
 * **Pauli Propagation**
-* `src/pauli_propagation_functions.jl` | Guide: `docs/pauli_propagation_guide.md`
-* *Description:* Decomposes quantum operators into a sprawling basis of Pauli strings to monitor information diffusion, scrambling, and weight distributions over time.
+    * `src/pauli_propagation_functions.jl` | Guide: `docs/pauli_propagation_guide.md`
+    * *Description:* Decomposes quantum operators into a sprawling basis of Pauli strings to monitor information diffusion, scrambling, and weight distributions over time.
 
 
 
@@ -57,11 +57,11 @@ The notebooks import and utilize the core source modules to execute physical exp
     * *The Entry Point:* This is the foundational use case of the repository. It provides a straightforward, easy-to-follow example implementing the Transverse Field Ising Model (TFIM) to show how the exact and MPO modules track physical observables.
 
 
-* **`random_bricklayer_circuits.ipynb` & `noisy_random_circuit.ipynb**`
+* **`random_bricklayer_circuits.ipynb` & `noisy_random_circuit.ipynb`**
     * Advanced setups exploring entangling unitary circuits, operator entanglement growth, and the destructive effects of local noise channels.
 
 
-* **`01_mps_basics.ipynb` & `02_mps_evolution.ipynb**`
+* **`01_mps_basics.ipynb` & `02_mps_evolution.ipynb`**
     * Python-based tutorials dedicated to basic Matrix Product State (MPS) manipulation, canonical forms, and Time-Evolving Block Decimation (TEBD).
 
 
@@ -110,8 +110,8 @@ Monitoring the coefficients $c_P(t)$ yields clean data regarding quantum chaos, 
 ### Additional Material
 
 * **Coursework:** Jacopo De Nardis's lecture series on *Quasi-exact numerical methods for quantum systems* (Master 2 Theoretical Physics).
-* **Conference Notes:** Summary from Miles Stoudenmire's talk at Quant25, available in [notes/TN_talk_note_Quant25.pdf](https://www.google.com/search?q=./notes/TN_talk_note_Quant25.pdf).
-* **Diagramming Tool:** [Overleaf TikZ Tutorial for Beginners (Flowcharts & Graphs)]()
+* **Conference Notes:** Summary from Miles Stoudenmire's talk at Quant25, available in [notes/TN_talk_note_Quant25.pdf](https://github.com/TheoHUETQC/Quantum-ManyBody-Sim-Methods/blob/main/notes/TN_talk_note_Quant25.pdf).
+* **Diagramming Tool:** [Overleaf TikZ Tutorial for Beginners (Flowcharts & Graphs)](https://www.overleaf.com/learn)
 
 ---
 
