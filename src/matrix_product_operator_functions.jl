@@ -62,7 +62,7 @@ function overlap(O::MPO, ψ::MPS)::Float64
 end
 
 #------------ Operator Entropy ------------
-function compute_entropy(s::Vector{Float64})::Float64
+function compute_entropy(s::Union{Vector{Float64}, NDTensors.DenseTensor{}})::Vector{Float64}
   raw"""
   compute_entropy(s::Vector{Float64})::Vector{Float64}
 

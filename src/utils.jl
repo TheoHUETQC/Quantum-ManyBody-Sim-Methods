@@ -45,7 +45,7 @@ function overlap_with_Zi_plot(
 end 
 
 function complexity_plot(
-  Nqubits_list::Union{UnitRange{Int64}, Vector{Int64}},
+  Nqubits_list::Union{UnitRange{Int64}, Vector{Int64}, StepRange{Int64, Int64}},
   nlayers::Int64,
   times_exact::Vector{Float64},
   times_pp::Vector{Float64},
@@ -85,7 +85,7 @@ function complexity_plot(
 end
 
 function truncation_plot(
-  parameter,
+  parameter::Union{UnitRange{<:Real}, Vector{<:Real}, StepRange{<:Real, <:Real}},
   truncations::Vector{Tuple{Int64, Float64}};
   method::Union{String, Nothing}=nothing,
   title::String="",
