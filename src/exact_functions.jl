@@ -5,6 +5,24 @@ using LinearAlgebra
 
 #------------ Overlap with a state psi ------------
 function overlap(O::Matrix, ψ::Vector{Float64})::Float64
+    """
+    overlap(O::Matrix, ψ::Vector{Float64})::Float64
+
+    Compute the expectation value $\langle \psi | \hat{O} | \psi \rangle$ of a dense matrix observable for a given state vector.
+
+    ### Arguments
+
+    * `O`: The matrix representation of the operator.
+    * `ψ`: The state vector $\psi$.
+
+    ### Returns
+
+    * The real-valued expectation value as a `Float64`.
+
+    ### Notes
+
+    This function performs the matrix-vector multiplication $\langle \psi | \hat{O} | \psi \rangle$. It returns the real part of the result, which is appropriate for physical observables represented by Hermitian matrices.
+    """
     return real(ψ' * O * ψ)
 end
 
@@ -46,10 +64,10 @@ function propagate_layerbylayer(
 
     entropies, norms, overlaps = Float64[], Float64[], Float64[]
 
-    if bond =! nothing
+    if bond != nothing
       push!(entropies, operator_entropy(observable, bond))
     end
-    if ψ0 =! nothing
+    if ψ0 != nothing
       push!(overlaps, overlap(observable, ψ0))
     end
     push!(norms, norm(observable))
@@ -59,10 +77,10 @@ function propagate_layerbylayer(
         for gate in reverse(layer)
           current = gate' * current * gate
         end
-        if bond =! nothing
+        if bond != nothing
           push!(entropies, operator_entropy(current, bond))
         end
-        if ψ0 =! nothing
+        if ψ0 != nothing
           push!(overlaps, overlap(current, ψ0))
         end
         push!(norms, norm(current))
