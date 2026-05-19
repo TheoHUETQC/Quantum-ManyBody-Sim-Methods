@@ -73,9 +73,9 @@ function compute_matrix(observable::Union{PauliSum, PauliString})::Matrix{Comple
 end
 
 #------------ overlap ------------ 
-function overlap(observable::Union{PauliSum, PauliString}, ψ::Vector{Float64})::Float64 
+function overlap(observable::Union{PauliSum, PauliString}, ψ::Union{Vector{Float64}, Vector{Int64}})::Float64 
   raw"""
-  overlap(observable::Union{PauliSum, PauliString}, ψ::Vector{Float64})::Float64
+  overlap(observable::Union{PauliSum, PauliString}, ψ::Union{Vector{Float64}, Vector{Int64}})::Float64
 
   Compute the expectation value $\langle \psi | \hat{O} | \psi \rangle$ of a Pauli observable for a given state vector.
 

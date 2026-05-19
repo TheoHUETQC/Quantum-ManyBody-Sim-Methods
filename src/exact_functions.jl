@@ -4,9 +4,9 @@ export overlap, operator_entropy, propagate_layerbylayer, get_Zi
 using LinearAlgebra
 
 #------------ Overlap with a state psi ------------
-function overlap(O::Matrix, ψ::Vector{Float64})::Float64
+function overlap(O::Matrix, ψ::Union{Vector{Float64}, Vector{Int64}})::Float64
     raw"""
-    overlap(O::Matrix, ψ::Vector{Float64})::Float64
+    overlap(O::Matrix, ψ::Union{Vector{Float64}, Vector{Int64}})::Float64
 
     Compute the expectation value $\langle \psi | \hat{O} | \psi \rangle$ of a dense matrix observable for a given state vector.
 
