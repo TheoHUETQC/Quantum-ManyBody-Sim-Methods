@@ -1,11 +1,11 @@
 module exact_functions
-export overlap, operator_entropy, propagate_layerbylayer, circuit_TFIM, get_Zi
+export overlap, operator_entropy, propagate_layerbylayer, get_Zi
 
 using LinearAlgebra
 
 #------------ Overlap with a state psi ------------
 function overlap(O::Matrix, ψ::Vector{Float64})::Float64
-    """
+    raw"""
     overlap(O::Matrix, ψ::Vector{Float64})::Float64
 
     Compute the expectation value $\langle \psi | \hat{O} | \psi \rangle$ of a dense matrix observable for a given state vector.
@@ -28,6 +28,24 @@ end
 
 #------------ Operator Entropy ------------
 function operator_entropy(O::Matrix, bond::Int)::Float64
+    raw"""
+    operator_entropy(O::Matrix, bond::Int)::Float64
+
+    Calculate the entanglement (Shannon) entropy of a dense operator `O` at a specified partition bond.
+
+    ### Arguments
+
+    * `O`: The dense matrix representation of the operator.
+    * `bond`: The number of qubits in the left partition (the cut location).
+
+    ### Returns
+
+    * The entropy value as a `Float64`.
+
+    ### Notes
+
+    This function reshapes the $2^n \times 2^n$ matrix into a tensor partitioned into $L$ and $R$ subsystems. It performs a Singular Value Decomposition (SVD) on the reshaped matrix to extract the singular value spectrum. The entropy is then calculated from the normalized squared singular values, with a small regularization constant ($10^{-15}$) to ensure numerical stability during the logarithmic calculation.
+    """
     dim_total = size(O, 1)
     nqubits = Int(log2(dim_total))
     
@@ -57,8 +75,31 @@ function propagate_layerbylayer(
     bond::Union{Int, Nothing}=nothing,
     ψ0::Union{Vector{Float64}, Nothing}=nothing,
     disable_print::Bool=false
-    )
+    )::Tuple{Matrix, Dict{String, Any}}
+    raw"""
+    propagate_layerbylayer(circuit::Vector{Vector{Matrix}}, observable::Matrix; bond::Union{Int, Nothing}=nothing, ψ0::Union{Vector{Float64}, Nothing}=nothing, disable_print::Bool=false)::Tuple{Matrix, Dict{String, Any}}
 
+    Propagate a dense matrix observable through a quantum circuit layer-by-layer in the Heisenberg picture.
+
+    ### Arguments
+
+    * `circuit`: A vector of layers, where each layer is a vector of unitary `Matrix` gates.
+    * `observable`: The initial dense `Matrix` to propagate.
+    * `bond`: Optional bond index to track entanglement entropy at each step.
+    * `ψ0`: Optional reference state vector to track state overlap at each step.
+    * `disable_print`: If `true`, suppresses progress output.
+
+    ### Returns
+
+    * A `Tuple` containing:
+    * `current`: The final propagated `Matrix`.
+    * `result`: A `Dict` containing tracked diagnostics: `"norm"`, `"S"` (entropy), `"overlap"`, and total execution `"time"`.
+
+
+    ### Notes
+
+    This function evolves the operator according to the Heisenberg picture ($O \leftarrow U^\dagger O U$) by iterating through the circuit in reverse order. It computes exact matrix products and tracks physical diagnostics at each layer if requested.
+    """
     t = time()
     nlayers = length(circuit)
 
@@ -101,8 +142,23 @@ end
 #------------ Observable for test ------------ 
 
 function get_Zi(nqubits::Int64, i::Int64)
-    """
-    Zᵢ = I..IZI..I with Z at the index i
+    raw"""
+    get_Zi(nqubits::Int64, i::Int64)::Matrix{ComplexF64}
+
+    Construct the dense matrix representation of a single-qubit Pauli-Z operator acting on the $i$-th qubit of an $n$-qubit system.
+
+    ### Arguments
+
+    * `nqubits`: The total number of qubits in the system.
+    * `i`: The index of the qubit where the Z operator is applied (1-indexed).
+
+    ### Returns
+
+    * A dense `Matrix{ComplexF64}` of size $2^n \times 2^n$ representing the operator $I \otimes \dots \otimes Z_i \otimes \dots \otimes I$.
+
+    ### Notes
+
+    This function constructs the operator using a Kronecker product of identity matrices and a Pauli-Z matrix. It is intended for small-scale exact simulations, as the memory cost of the resulting matrix scales as $O(2^{2n})$.
     """
     Id = ComplexF64[1 0; 0 1]
     Z  = ComplexF64[1 0; 0 -1]

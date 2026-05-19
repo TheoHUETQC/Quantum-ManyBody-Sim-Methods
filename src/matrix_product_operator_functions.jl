@@ -5,7 +5,7 @@ using ITensors, ITensorMPS
 
 #------------ MPO -> Matrix ------------
 function compute_matrix(mpo::MPO, sites::Vector{<:Index})::Matrix{ComplexF64}
-  """
+  raw"""
   compute_matrix(mpo::MPO, sites::Vector{<:Index})::Matrix{ComplexF64}
 
   Construct the dense matrix representation of a Matrix Product Operator (MPO).
@@ -40,7 +40,7 @@ end
 
 #------------ Overlap with a state psi ------------
 function overlap(O::MPO, ψ::MPS)::Float64
-  """
+  raw"""
   overlap(O::MPO, ψ::MPS)::Float64
 
   Compute the expectation value $\langle \psi | \hat{O} | \psi \rangle$ of an MPO observable for a given Matrix Product State (MPS).
@@ -63,7 +63,7 @@ end
 
 #------------ Operator Entropy ------------
 function compute_entropy(s::Vector{Float64})::Float64
-  """
+  raw"""
   compute_entropy(s::Vector{Float64})::Vector{Float64}
 
   Calculate the Shannon entropy of the singular value spectrum of an MPO or MPS.
@@ -86,7 +86,7 @@ function compute_entropy(s::Vector{Float64})::Float64
 end
 
 function operator_entropy(O::MPO, bond::Int)::Float64
-  """
+  raw"""
   operator_entropy(O::MPO, bond::Int)::Float64
 
   Calculate the entanglement entropy of an MPO at a specified bond by analyzing its singular value spectrum.
@@ -128,7 +128,7 @@ function apply_depolarizing_noise(
   maxdim::Union{Nothing, Integer}=nothing, 
   cutoff::Float64=0.
   )::MPO
-  """
+  raw"""
   apply_depolarizing_noise(O::MPO, sites_to_noise::Vector{<:Index}, lambda::Float64; maxdim::Union{Nothing, Integer}=nothing, cutoff::Float64=0.0)::MPO
 
   Apply a local depolarizing noise channel to specified sites of a Matrix Product Operator (MPO).
@@ -181,7 +181,7 @@ end
 
 #------------ Propagate Layer by layer ------------ 
 function tensor_dag(U::ITensor)::ITensor
-  """
+  raw"""
   tensor_dag(U::ITensor)::ITensor
 
   Compute the Hermitian conjugate of an `ITensor` representing an operator.
@@ -216,7 +216,7 @@ function propagate_1layer(
   cutoff::Float64=0.,
   γ::Float64=0., # for the Noise
   )::MPO
-  """
+  raw"""
   propagate_1layer(layer::Union{ITensor, Vector{ITensor}}, current::MPO, norm0::Float64; maxdim::Union{Nothing, Integer}=nothing, cutoff::Float64=0.0, γ::Float64=0.0)::MPO
 
   Propagate an MPO observable through a single layer of a quantum circuit, including optional depolarizing noise and renormalization.
@@ -262,7 +262,7 @@ function propagate_layerbylayer(
   γ::Float64=0., # for the Noise
   disable_print::Bool=false
   )::Tuple{MPO, Dict{String, Any}}
-  """
+  raw"""
   propagate_layerbylayer(circuit::Vector{Vector{ITensor}}, observable::MPO; cutoff::Float64=0.0, maxdim::Union{Int, Nothing}=nothing, bond::Union{Int, Nothing}=nothing, ψ0::Union{MPS, Nothing}=nothing, γ::Float64=0.0, disable_print::Bool=false)::Tuple{MPO, Dict{String, Any}}
 
   Propagate an MPO observable through a quantum circuit layer-by-layer in the Heisenberg picture.
@@ -345,7 +345,7 @@ function find_truncations(
   γ::Float64=0., # for the Noise
   disable_print::Bool=false
   )::Tuple{Int64, Float64}
-  """
+  raw"""
   find_truncations(tolerance::Float64, circuit::Vector{Vector{ITensor}}, observable::MPO; γ::Float64=0.0, disable_print::Bool=false)::Tuple{Int64, Float64}
 
   Determine the optimal truncation parameters (`maxdim` and `cutoff`) for Matrix Product Operator (MPO) propagation.

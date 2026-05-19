@@ -7,7 +7,7 @@ using LinearAlgebra
 
 #------------ Decode Pauli string ------------
 function decode_pauli(pauli_string::Unsigned, num_qubits::Int)::String
-  """
+  raw"""
   decode_pauli(pauli_string::Unsigned, num_qubits::Int)::String
 
   Convert a bit-encoded Pauli string into its human-readable string representation.
@@ -37,7 +37,7 @@ end
 
 #------------ PauliSum -> Matrix ------------
 function compute_matrix(observable::Union{PauliSum, PauliString})::Matrix{ComplexF64}
-  """
+  raw"""
   compute_matrix(observable::Union{PauliSum, PauliString})::Matrix{ComplexF64}
 
   Construct the dense matrix representation of a Pauli operator or sum of Pauli operators.
@@ -74,7 +74,7 @@ end
 
 #------------ overlap ------------ 
 function overlap(observable::Union{PauliSum, PauliString}, ψ::Vector{Float64})::Float64 
-  """
+  raw"""
   overlap(observable::Union{PauliSum, PauliString}, ψ::Vector{Float64})::Float64
 
   Compute the expectation value $\langle \psi | \hat{O} | \psi \rangle$ of a Pauli observable for a given state vector.
@@ -118,7 +118,7 @@ end
 
 #------------ Pauli Norm ------------ 
 function pauli_norm(observable::Union{PauliSum, PauliString})::Float64
-  """
+  raw"""
   pauli_norm(observable::Union{PauliSum, PauliString})::Float64
 
   Calculate the squared Frobenius norm (sum of squared coefficients) of a Pauli operator or sum of Pauli operators.
@@ -143,7 +143,7 @@ end
 
 #------------ Pauli Entropy ------------ 
 function shannon_entropy(observable::Union{PauliSum, PauliString})::Float64
-  """
+  raw"""
   shannon_entropy(observable::Union{PauliSum, PauliString})::Float64
 
   Calculate the Shannon entropy of the squared coefficients of the Pauli observable.
@@ -167,7 +167,7 @@ function shannon_entropy(observable::Union{PauliSum, PauliString})::Float64
 end
 
 function renyi_entropy(observable::Union{PauliSum, PauliString{}}; k::Int64=2)::Float64
-  """
+  raw"""
   renyi_entropy(observable::Union{PauliSum, PauliString}; k::Int64=2)::Float64
 
   Calculate the Rényi entropy of order `k` for the Pauli weight distribution of an `observable`.
@@ -208,7 +208,7 @@ end
 
 #------------ Noise layer ------------
 function applynoiselayer(psum::PauliSum;depol_strength=0.02, dephase_strength=0.02, noise_level=1.0)
-  """
+  raw"""
   applynoiselayer(psum::PauliSum; depol_strength::Float64=0.02, dephase_strength::Float64=0.02, noise_level::Float64=1.0)
 
   Apply a noise layer to a `PauliSum` by attenuating its coefficients in-place.
@@ -240,7 +240,7 @@ function get_layer(
   circuit::Union{Gate, Vector{Gate}}, 
   parameters::Union{Nothing, Vector{Float64}}
   )::Tuple{Union{Gate, Vector{Gate}}, Union{Nothing, Vector{Float64}}}
-  """
+  raw"""
   get_layer(layer_idx::Integer, ngate_bylayer::Integer, circuit::Union{Gate, Vector{Gate}}, parameters::Union{Nothing, Vector{Float64}})::Tuple{Vector{Gate}, Union{Nothing, Vector{Float64}}}
 
   Extract a specific layer of gates and their corresponding parameters from a quantum circuit.
@@ -280,7 +280,7 @@ function propagate_1layer(
   min_abs_coeff::Float64=0.,
   γ::Float64=0., # for the Noise
   )::PauliSum
-  """
+  raw"""
   propagate_1layer(layer_gates::Union{Gate, Vector{Gate}}, current::Union{PauliSum, PauliString}, parameter::Union{Nothing, Float64, Vector{Float64}}; max_weight::Union{Nothing, Integer}=nothing, min_abs_coeff::Float64=0.0, γ::Float64=0.0)::PauliSum
 
   Propagate a Pauli observable through a single layer of a quantum circuit, including optional noise and renormalization.
@@ -327,7 +327,7 @@ function propagate_layerbylayer(
   γ::Float64=0., # for the Noise
   disable_print::Bool=false
   )::Tuple{PauliSum, Dict{String, Any}}
-  """
+  raw"""
   propagate_layerbylayer(circuit::Union{Gate, Vector{Gate}}, observable::Union{PauliSum, PauliString}, nlayers::Int64, parameters::Union{Vector{Float64}, Nothing}=nothing; max_weight::Union{Integer, Nothing}=nothing, min_abs_coeff::Float64=0.0, k::Union{Int64, Nothing}=nothing, ψ0::Union{Vector{Float64}, Nothing}=nothing, γ::Float64=0.0, disable_print::Bool=false)::Tuple{PauliSum, Dict{String, Any}}
 
   Propagate a Pauli observable through a quantum circuit layer-by-layer in the Heisenberg picture.
@@ -410,7 +410,7 @@ function find_truncations(
   γ::Float64=0., # for the Noise
   disable_print::Bool=false
   )::Tuple{Int64, Float64}
-  """
+  raw"""
   find_truncations(tolerance::Float64, circuit::Union{Gate, Vector{Gate}}, observable::Union{PauliSum, PauliString}, nlayers::Int64, parameters::Union{Nothing, Vector{Float64}}=nothing; γ::Float64=0.0, disable_print::Bool=false)::Tuple{Int64, Float64}
 
   Determine the optimal truncation parameters (`max_weight` and `min_abs_coeff`) for the Pauli propagation method.
