@@ -62,15 +62,15 @@ function overlap(O::MPO, ψ::MPS)::Float64
 end
 
 #------------ Operator Entropy ------------
-function compute_entropy(s::Union{Vector{Float64}, NDTensors.DenseTensor{}})::Vector{Float64}
+function compute_entropy(s::Union{Float64, Vector{Float64}, NDTensors.DenseTensor{}})::Float64
   raw"""
-  compute_entropy(s::Vector{Float64})::Vector{Float64}
+  compute_entropy(s::Union{Float64, Vector{Float64}, NDTensors.DenseTensor{}})::Float64
 
   Calculate the Shannon entropy of the singular value spectrum of an MPO or MPS.
 
   ### Arguments
 
-  * `s`: A vector of singular values (e.g., from the SVD of a tensor in the network).
+  * `s`: A vector of singular values (e.g., from the SVD of a tensor in the network) or one singular value.
 
   ### Returns
 
