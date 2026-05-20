@@ -24,6 +24,9 @@ import .circuit as ct
 
 # --- Parameters ---
 run = parse(Int64, ARGS[1])
+path = joinpath("results", "run_$run")
+mkpath(path)
+
 nlayers = 40
 tolerance = 1e-1
 
@@ -31,7 +34,7 @@ tolerance = 1e-1
 i = 2
 
 # qubits list
-Ns = [5, 7, 9, 10]
+Ns = [5, 6, 7, 8, 9, 10]
 
 # Gamma list
 """x = Array(-5:2)
@@ -56,6 +59,9 @@ for nqubits in Ns
   Z_i_mpo = MPO(sites, ops)
 
   # --- PROPAGATION ---
+  results_Renyi_entropy_dict = Dict("N_qubits" => nqubits, "Layer" => 0:nlayers)
+  results_Operator_Entanglement_dict = copy(results_Renyi_entropy_dict)
+
   for gamma in gamma_list
     println("---------- gamma=$gamma ----------")
     println("------- Pauli -------")
@@ -66,22 +72,17 @@ for nqubits in Ns
     (maxdim, cutoff) = mpo.find_truncations(tolerance, circuit_mpo, Z_i_mpo; γ=gamma)
     Z_it_mpo, result_mpo = mpo.propagate_layerbylayer(circuit_mpo, Z_i_mpo; cutoff, maxdim, bond, γ=gamma)
 
-    # --- Save Data ---
-    output_file = "results_N_$nqubits-gamma_$(replace(string(gamma), "." => "_")).csv"
-    
-    path = joinpath("run_$run", "N_$nqubits")
-    mkpath(path)
-
-    complete_path = joinpath(path, output_file)
-
-    results = DataFrame(
-        Gamma = gamma,
-        N_qubits = nqubits,
-        Layer = 0:nlayers,
-        Renyi_entropy = result_pp["S"],
-        Operator_Entanglement = result_mpo["S"]
-    )
-
-    CSV.write(complete_path, results)
+    results_Renyi_entropy_dict["gamma=$gamma"] = result_pp["S"]
+    results_Operator_Entanglement_dict["gamma=$gamma"] = result_mpo["S"]
   end
+
+  # --- Save Data ---
+  complete_path_Renyi_entropy = joinpath(path, "results_N_$(nqubits)-Renyi_entropy.csv")
+  complete_path_Operator_Entanglement = joinpath(path, "results_N_$(nqubits)-Operator_Entanglement.csv")
+  
+  results_Renyi_entropy = DataFrame(results_Renyi_entropy_dict)
+  results_Operator_Entanglement = DataFrame(results_Operator_Entanglement_dict)
+
+  CSV.write(complete_path_Renyi_entropy, results_Renyi_entropy)
+  CSV.write(complete_path_Operator_Entanglement, results_Operator_Entanglement)
 end
