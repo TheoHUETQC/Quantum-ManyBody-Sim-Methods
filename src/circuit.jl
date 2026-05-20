@@ -1,13 +1,33 @@
 module circuit
-export local_to_global_matrices, matrix_to_gate, mpo_compute_MFIM_circuit, pp_TFIM_circuit, haar_unitary, random_circuit
+export local_to_global_matrices, matrix_to_gate, mpo_MFIM_circuit, pp_MFIM_circuit, exact_circuit_MFIM, haar_unitary, random_circuit
 
 using ITensors, ITensorMPS
 using PauliPropagation
 using LinearAlgebra
 
 #------------ matrix 4x4 -> matrix 2^Nx2^N ------------
-function local_to_global_matrices(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64)
+function local_to_global_matrices(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64)::Matrix{ComplexF64}
+  raw"""
+  local_to_global_matrices(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64)::Matrix{ComplexF64}
+
+  Embeds a local two-qubit operator `U` into the global Hilbert space of a system containing `nqubits`.
+
+  This function utilizes Kronecker products to extend a local operator (typically a $4 \\times 4$ matrix acting on two qubits) into a global operator of dimensions $2^{nqubits} \\times 2^{nqubits}$. It places the local operator `U` at the specified qubit indices, applying the identity matrix to all other sites.
+
+  # Arguments
+  - `U::Matrix{ComplexF64}`: The local operator (matrix) acting on the qubit pair.
+  - `pair::Tuple{Int64, Int64}`: A tuple indicating the two consecutive target qubit indices (e.g., `(i, i+1)`). 
+  - `nqubits::Int64`: The total number of qubits in the system.
+
+  # Returns
+  - `Matrix{ComplexF64}`: The resulting global operator matrix in the full Hilbert space.
+
+  # Throws
+  - `AssertionError`: If the indices in `pair` are not consecutive (i.e., if `j != i + 1`).
+  """
   i,j = pair
+  @assert j == i+1
+
   U_global = [1.0 + 0.0im;;]
   k = 1
   while k <= nqubits
@@ -24,7 +44,29 @@ function local_to_global_matrices(U::Matrix, pair::Tuple{Int64, Int64}, nqubits:
 end
 
 #------------ matrix 4x4 -> gate for 3 methods ------------
-function matrix_to_gate(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64, sites)
+function matrix_to_gate(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64, sites::Vector{<:Index})::Tuple{Gate, ITensor, Matrix{ComplexF64}}
+  raw"""
+  matrix_to_gate(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64, sites::Vector{<:Index})::Tuple{Gate, ITensor, Matrix{ComplexF64}}
+
+  Converts a local $4 \\times 4$ unitary matrix into three distinct representations compatible with Pauli Propagation, MPO (ITensors), and Exact simulation methodologies.
+
+  This utility function acts as a factory, preparing a two-qubit gate `U` for multiple simulation backends:
+  - **Pauli Propagation**: Calculates the Pauli Transfer Matrix (PTM) and wraps it into a `TransferMapGate`.
+  - **MPO**: Converts the dense matrix into an `ITensor` compatible with `ITensors.jl`, indexed by the provided `sites`.
+  - **Exact**: Embeds the local operator into a global $2^{nqubits} \\times 2^{nqubits}$ matrix using Kronecker products.
+
+  # Arguments
+  - `U::Matrix{ComplexF64}`: The local $4 \\times 4$ unitary matrix to convert.
+  - `pair::Tuple{Int64, Int64}`: The qubit indices on which the gate acts.
+  - `nqubits::Int64`: The total number of qubits in the system.
+  - `sites::Vector{<:Index}`: The ITensors `SiteSet` or vector of indices corresponding to the physical system.
+
+  # Returns
+  - `Tuple{Gate, ITensor, Matrix{ComplexF64}}`: A tuple containing the gate in `PauliPropagation` format, the MPO `ITensor` format, and the global dense `Matrix` format respectively.
+
+  # Throws
+  - `AssertionError`: If `U` is not unitary (i.e., $U U^\dagger \neq I$).
+  """
   # need to be 4x4 and unitary
   @assert U * U' ≈ U' * U ≈ I(4)
 
@@ -46,7 +88,24 @@ end
 # ======================  MFIM Circuit ======================  
 
 # ------------ Hamiltonien local h_{j,j+1} ------------
-function build_two_site_MFIM_hamiltonian(sites, j::Int64, N::Int64, g::Float64=0.5, h::Float64=0.5)
+function build_two_site_MFIM_hamiltonian(sites, j::Int64, N::Int64, g::Float64=0.5, h::Float64=0.5)::ITensor
+  raw"""
+  build_two_site_MFIM_hamiltonian(sites, j::Int64, N::Int64, g::Float64=0.5, h::Float64=0.5)::ITensor
+
+  Constructs the local two-site Hamiltonian tensor for the Mixed Field Ising Model (MFIM) at bond `j` for an MPS-based simulation.
+
+  The function calculates the interaction term $X_j X_{j+1}$ and distributes the local magnetic field terms (transverse field `g` and longitudinal field `h`) across the sites. To ensure the global Hamiltonian is correctly represented, fields are applied in full at the chain boundaries and split evenly (halved) between adjacent sites for internal bonds.
+
+  # Arguments
+  - `sites`: The site indices collection (typically an ITensors.jl `SiteSet`).
+  - `j::Int64`: The current bond index representing the interaction between site `j` and `j+1`.
+  - `N::Int64`: The total number of sites in the system.
+  - `g::Float64=0.5`: The strength of the transverse magnetic field ($X$ term).
+  - `h::Float64=0.5`: The longitudinal magnetic field strength ($Z$ term).
+
+  # Returns
+  - `ITensor`: The two-site operator representing the local Hamiltonian contribution for the bond `(j, j+1)`.
+  """
   s1 = sites[j]
   s2 = sites[j + 1]
 
@@ -69,7 +128,24 @@ function build_two_site_MFIM_hamiltonian(sites, j::Int64, N::Int64, g::Float64=0
 end
 
 # ------------ Construction des gates TEBD ------------
-function build_TEBD_gates_hj_MFIM(sites, τ::Float64, N::Int64, g::Float64=0.5, h::Float64=0.5)
+function build_TEBD_gates_hj_MFIM(sites, τ::Float64, N::Int64, g::Float64=0.5, h::Float64=0.5)::Tuple{Vector{ITensor}, Vector{ITensor}}
+  raw"""
+  build_TEBD_gates_hj_MFIM(sites, τ::Float64, N::Int64, g::Float64=0.5, h::Float64=0.5)::Tuple{Vector{ITensor}, Vector{ITensor}}
+
+  Prepares the unitary evolution gates (Trotter gates) for the Mixed Field Ising Model (MFIM) using the Time-Evolving Block Decimation (TEBD) method.
+
+  This function iterates over the bonds of the lattice, constructs the local Hamiltonian terms using `build_two_site_MFIM_hamiltonian`, and computes the corresponding unitary gates $U = e^{-i \cdot \\tau \cdot H}$. The gates are partitioned into an "odd" set and an "even" set to facilitate the standard checkerboard decomposition required for TEBD evolution.
+
+  # Arguments
+  - `sites::ITensors.SiteSet`: The site indices collection corresponding to the physical system.
+  - `τ::Float64`: The time step parameter for the evolution.
+  - `N::Int64`: The total number of sites in the system.
+  - `g::Float64=0.5`: The strength of the transverse magnetic field ($X$ term).
+  - `h::Float64=0.5`: The strength of the longitudinal magnetic field ($Z$ term).
+
+  # Returns
+  - `Tuple{Vector{ITensor}, Vector{ITensor}}`: A tuple containing two vectors of gates (`gates_odd`, `gates_even`). Each element is an `ITensor` representing the unitary gate for a specific bond.
+  """
   gates_odd = ITensor[]
   gates_even = ITensor[]
   for j in 1:(N-1)
@@ -155,49 +231,85 @@ end
 # ======================  Random Circuit ======================  
 
 #------------ Random unitary matrix ------------
-function haar_unitary(n::Int64)
-    # 1. Generation of Z
-    Z = randn(ComplexF64, n, n)
+function haar_unitary(n::Int64)::Matrix{ComplexF64}
+  raw"""
+  haar_unitary(n::Int64)::Matrix{ComplexF64}
 
-    # 2. QR Decomposition
-    F = qr(Z)
-    Q = Matrix(F.Q)
-    R = F.R
+  Generates a random unitary matrix sampled according to the Haar measure on the unitary group $U(n)$.
 
-    # 3. Phase correction
-    d = diag(R)
-    ph = d ./ abs.(d)
+  This function implements the standard construction (Mezzadri algorithm): it generates a random complex Gaussian matrix, performs a QR decomposition, and applies a phase correction to the columns of $Q$ to ensure the resulting matrix is distributed uniformly according to the Haar measure.
 
-    U = Q * Diagonal(ph)
-    return U
+  # Arguments
+  - `n::Int64`: The dimension of the square matrix to be generated.
+
+  # Returns
+  - `Matrix{ComplexF64}`: A unitary matrix of size $n \\times n$ satisfying $U \\cdot U^\\dagger = I$.
+  """
+  # 1. Generation of Z
+  Z = randn(ComplexF64, n, n)
+
+  # 2. QR Decomposition
+  F = qr(Z)
+  Q = Matrix(F.Q)
+  R = F.R
+
+  # 3. Phase correction
+  d = diag(R)
+  ph = d ./ abs.(d)
+
+  U = Q * Diagonal(ph)
+  return U
 end
 
 #------------ Random Circuit for 3 methods ------------
-function random_circuit(nqubits::Integer, nlayers::Integer; topology=nothing)
-    sites = ITensors.siteinds("Qubit", nqubits)
-    circuit_pp::Vector{Gate} = []
-    circuit_mpo::Vector{Vector{ITensor}} = []
-    circuit_exact::Vector{Vector{Matrix}} = []
+function random_circuit(
+  nqubits::Integer, 
+  nlayers::Integer; 
+  topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing
+  )::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
+  raw"""
+  random_circuit(nqubits::Integer, nlayers::Integer; topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
 
-    if isnothing(topology)
-        topology = bricklayertopology(nqubits; periodic=false)
-    end
+  Generates a random quantum circuit in three simultaneous representations: Pauli Propagation, MPO (ITensors), and Exact matrix multiplication.
 
-    for _ in 1:nlayers
-      layer_mpo::Vector{ITensor} = []
-      layer_exact::Vector{Matrix} = []
-      for pair in topology
-          U = haar_unitary(4)
-          # U = [0 0 0 1; 0 0 1 0; 0 1 0 0; 1 0 0 0] # XX gate for test
-          U_pp, U_mpo, U_exact = matrix_to_gate(U, pair, nqubits, sites)
-          push!(circuit_pp, U_pp)
-          push!(layer_mpo, U_mpo)
-          push!(layer_exact, U_exact)
-      end
-      push!(circuit_mpo, layer_mpo)
-      push!(circuit_exact, layer_exact)
+  This function acts as a cross-validation tool. For each layer and topology connection, it generates a random $4 \\times 4$ Haar unitary gate and converts it into the three required formats. This allows for rigorous comparison and validation of different simulation methodologies (Pauli Propagation vs. MPO vs. Exact) using the exact same unitary transformations.
+
+  # Arguments
+  - `nqubits::Integer`: The total number of qubits in the system.
+  - `nlayers::Integer`: The number of layers (depth) of the circuit.
+  - `topology::Union{Vector{Tuple{Int64, Int64}}, Nothing}=nothing`: The connectivity graph for the gates. If `nothing`, a non-periodic bricklayer topology is used.
+
+  # Returns
+  - `Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}`: A tuple containing:
+      1. `Vector{Gate}`: The circuit formatted for `PauliPropagation.jl`.
+      2. `Vector{Vector{ITensor}}`: The circuit formatted as layers of `ITensor`s for MPO simulations.
+      3. `Vector{Vector{Matrix}}`: The circuit formatted as layers of global dense `Matrix` objects for exact simulation.
+      4. `Vector{<:Index}`: The `SiteSet` indices used for the ITensor representation.
+  """
+  sites = ITensors.siteinds("Qubit", nqubits)
+  circuit_pp::Vector{Gate} = []
+  circuit_mpo::Vector{Vector{ITensor}} = []
+  circuit_exact::Vector{Vector{Matrix}} = []
+
+  if isnothing(topology)
+    topology = bricklayertopology(nqubits; periodic=false)
+  end
+
+  for _ in 1:nlayers
+    layer_mpo::Vector{ITensor} = []
+    layer_exact::Vector{Matrix} = []
+    for pair in topology
+      U = haar_unitary(4)
+      # U = [0 0 0 1; 0 0 1 0; 0 1 0 0; 1 0 0 0] # XX gate for test
+      U_pp, U_mpo, U_exact = matrix_to_gate(U, pair, nqubits, sites)
+      push!(circuit_pp, U_pp)
+      push!(layer_mpo, U_mpo)
+      push!(layer_exact, U_exact)
     end
-    return circuit_pp, circuit_mpo, circuit_exact, sites
+    push!(circuit_mpo, layer_mpo)
+    push!(circuit_exact, layer_exact)
+  end
+  return circuit_pp, circuit_mpo, circuit_exact, sites
 end
 
 end # module
