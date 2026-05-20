@@ -162,9 +162,38 @@ function build_TEBD_gates_hj_MFIM(sites, τ::Float64, N::Int64, g::Float64=0.5, 
 end
 
 # ------------ MFIM Circuit for mpo ------------
-function mpo_compute_MFIM_circuit(Nqubits::Int64, nlayers::Int64, τ::Float64, g::Float64=0.5, h::Float64=0.5)
-  sites = ITensors.siteinds("S=1/2", Nqubits)
-  gates_odd, gates_even = build_TEBD_gates_hj_MFIM(sites, τ, Nqubits, g, h)
+function mpo_MFIM_circuit(
+  nqubits::Int64, 
+  nlayers::Int64; 
+  τ::Float64=0.1,
+  g::Float64=0.5, 
+  h::Float64=0.5
+  )::Tuple{Vector{Vector{ITensor}}, Vector{<:Index}} 
+  raw"""
+  mpo_MFIM_circuit(nqubits::Int64, nlayers::Int64; τ::Float64=0.1, g::Float64=0.5, h::Float64=0.5)::Tuple{Vector{Vector{ITensor}}, Vector{<:Index}} 
+
+  Constructs the quantum evolution circuit for the Mixed Field Ising Model (MFIM) specifically structured for MPO/TEBD simulations using `ITensors.jl`.
+
+  This function implements a symmetric second-order Trotter decomposition for each layer. For a given time step `τ`, the evolution is constructed as:
+  $U(\tau) \\approx e^{-i H_{\\text{odd}} \\tau/2} \\cdot e^{-i H_{\\text{even}} \\tau} \\cdot e^{-i H_{\\text{odd}} \\tau/2}$.
+
+  # Arguments
+  - `nqubits::Int64`: The total number of spins/sites in the lattice.
+  - `nlayers::Int64`: The number of Trotter steps (layers) to generate.
+  - `τ::Float64=0.1`: The time step parameter.
+  - `g::Float64=0.5`: The strength of the transverse magnetic field ($X$ term).
+  - `h::Float64=0.5`: The strength of the longitudinal magnetic field ($Z$ term).
+
+  # Returns
+  - `Tuple{Vector{Vector{ITensor}}, Vector{<:Index}}`: A tuple containing:
+    - `Vector{Vector{ITensor}}`: A list of layers, where each inner vector contains the ordered sequence of ITensor gates for one full Trotter step.
+    - `Vector{<:Index}`: The site indices (SiteSet) corresponding to the system, essential for initializing MPS states or contracting the MPO gates.
+  """
+  if nlayers == 0
+    return [[]]
+  end
+  sites = ITensors.siteinds("S=1/2", nqubits)
+  gates_odd, gates_even = build_TEBD_gates_hj_MFIM(sites, τ, nqubits, g, h)
 
   # On crée une seule liste ordonnée pour un pas de Trotter complet
   # Ordre : Odd (τ/2) -> Even (τ) -> Odd (τ/2)
@@ -173,59 +202,133 @@ function mpo_compute_MFIM_circuit(Nqubits::Int64, nlayers::Int64, τ::Float64, g
   return [one_step_layer for _ in 1:nlayers], sites
 end
 
-# ======================  TFIM Circuit ====================== 
+# ------------ MFIM Circuit for Pauli propagation ------------
+function pp_MFIM_circuit(
+  nqubits::Integer, 
+  nlayers::Integer; 
+  τ::Float64=0.1,
+  g::Float64=0.5, 
+  h::Float64=0.5, 
+  topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing
+  )::Tuple{Vector{Gate}, Vector{Float64}}
+  raw"""
+  pp_MFIM_circuit(nqubits::Integer, nlayers::Integer; τ::Float64=0.1, g::Float64=0.5, h::Float64=0.5, topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Float64}}
 
-# ------------ TFIM Circuit for Pauli propagation ------------
-function pp_TFIM_circuit(nqubits::Integer, nlayers::Integer; topology=nothing)
-    circuit::Vector{Gate} = []
+  Constructs a quantum circuit for the Mixed Field Ising Model (MFIM) evolution, designed for use with the `PauliPropagation.jl` package.
 
-    if isnothing(topology)
-      topology = bricklayertopology(nqubits; periodic=false)
+  The circuit implements the Hamiltonian $H = \sum_{i,i+1} X_i X_{i+1} + g\sum_i X_i + h\sum_i Z_i$ using a Trotterized evolution. Each layer consists of an XX interaction layer followed by local X and Z rotations on all qubits.
+
+  # Arguments
+  - `nqubits::Integer`: The number of qubits in the system.
+  - `nlayers::Integer`: The number of evolution layers (Trotter steps) to append to the circuit.
+  - `τ::Float64=0.1`: The time step parameter for the Trotter evolution.
+  - `g::Float64=0.5`: The transverse field strength scaling the X rotations.
+  - `h::Float64=0.5`: The longitudinal field strength scaling the Z rotations.
+  - `topology::Union{Vector{Tuple{Int64, Int64}}, Nothing}=nothing`: The connectivity graph for the XX interactions. If `nothing`, a non-periodic bricklayer topology is used.
+
+  # Returns
+  - `Tuple{Vector{Gate}, Vector{Float64}}`: A tuple containing the list of gates that define the circuit and a vector containing the corresponding parameters (angles) for each gate.
+  """
+  circuit::Vector{Gate} = []
+  parameters::Vector{Float64} = []
+  if nlayers == 0
+    return circuit, parameters
+  end
+  if isnothing(topology)
+    topology = bricklayertopology(nqubits; periodic=false)
+  end
+
+  for _ in 1:nlayers
+    # ∑ X_i X_{i+1}
+    rxxlayer!(circuit, topology)
+    for _ in topology
+      push!(parameters, τ)
     end
-
-    for _ in 1:nlayers
-      rxxlayer!(circuit, topology)
+    
+    # g * ∑ X_i + h * ∑ Z_i
+    rxlayer!(circuit, nqubits)
+    rzlayer!(circuit, nqubits)
+    for _ in 1:nqubits
+      push!(parameters, τ*g)
+      push!(parameters, τ*h)
     end
-    return circuit
+  end
+  @assert countparameters(circuit) == length(parameters)
+  return circuit, parameters
 end
 
-# ------------ TFIM Circuit for exact method ------------
-function exact_circuit_TFIM(nqubits::Int64, dt::Float64, nlayers::Int64)
-    """
-    H = ∑XᵢXⱼ
-    """
-    Id = ComplexF64[1 0; 0 1]
-    X  = ComplexF64[0 1; 1 0]
+# ------------ MFIM Circuit for exact method ------------
+function exact_circuit_MFIM(
+  nqubits::Int64, 
+  dt::Float64, 
+  nlayers::Int64, 
+  g::Float64, 
+  h::Float64
+  )::Vector{Vector{Matrix}}
+  raw"""
+  exact_circuit_MFIM(nqubits::Int64, dt::Float64, nlayers::Int64, g::Float64, h::Float64)::Vector{Vector{Matrix}}
 
-    topology = [(i, i+1) for i in 1:(nqubits-1)]
+  Constructs the exact unitary evolution operator for the Mixed Field Ising Model (MFIM) using full matrix exponentiation (Exact Diagonalization).
 
-    dim = 2^nqubits
-    H = zeros(ComplexF64, dim, dim)
+  The function builds the global Hamiltonian $H = \\sum_{i} X_i X_{i+1} + g \\sum_{i} X_i + h \\sum_{i} Z_i$ and computes the unitary evolution operator $U = e^{-i \\cdot dt \\cdot H}$. This provides a reference exact solution for validating quantum circuit simulations.
 
-    for (qubit_i, qubit_j) in topology
+  # Arguments
+  - `nqubits::Int64`: The total number of qubits in the system.
+  - `dt::Float64`: The time step for the evolution.
+  - `nlayers::Int64`: The number of repeated evolution layers.
+  - `g::Float64`: The strength of the transverse magnetic field (scaling the X terms).
+  - `h::Float64`: The strength of the longitudinal magnetic field (scaling the Z terms).
 
-        term = [1.0 + 0.0im;;] 
+  # Returns
+  - `Vector{Vector{Matrix}}`: A representation of the evolution circuit where each layer consists of the global unitary matrix $U$.
+  """
+  Id = ComplexF64[1 0; 0 1]
+  X  = ComplexF64[0 1; 1 0]
+  Z  = ComplexF64[1 0; 0 -1]
+  dim = 2^nqubits
+
+  # pour créer l'opérateur global à partir d'un opérateur local en position k
+  function get_operator(op, k, n)
+    ops = [Id for _ in 1:n]
+    ops[k] = op
+    res = ops[1]
+    for i in 2:n
+      res = kron(res, ops[i])
+      end
+    return res
+  end
+
+  H = zeros(ComplexF64, dim, dim)
+
+  # ∑ X_i X_{i+1}
+  for i in 1:(nqubits-1)
+    ops = [Id for _ in 1:nqubits]
+    ops[i] = X
+    ops[i+1] = X
         
-        for k in 1:nqubits
-            if k == qubit_i || k == qubit_j
-                term = kron(term, X)
-            else
-                term = kron(term, Id)
-            end
-        end
-        H += term
+    term = ops[1]
+    for k in 2:nqubits
+      term = kron(term, ops[k])
     end
+    H += term
+  end
 
-    U = exp(-1im * dt * H / 2)
+  # g * ∑ X_i
+  for i in 1:nqubits
+    H += g * get_operator(X, i, nqubits)
+  end
 
-    layer = [U]
-    circuit_exact = Vector{Vector{Matrix}}()
+  # h * ∑ Z_i
+  for i in 1:nqubits
+    H += h * get_operator(Z, i, nqubits)
+  end
+
+  U = exp(-1im * dt * H) 
+
+  layer = [U]
+  circuit_exact = [layer for _ in 1:nlayers]
     
-    for _ in 1:nlayers
-        push!(circuit_exact, layer)
-    end
-
-    return circuit_exact
+  return circuit_exact
 end
 
 # ======================  Random Circuit ======================  
