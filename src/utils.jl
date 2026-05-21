@@ -34,12 +34,16 @@ function overlap_with_Zi_plot(
   max_weight::Int64,
   min_abs_coeff::Float64,
   maxdim::Int64,
-  cutoff::Float64
-)
+  cutoff::Float64;
+  thermalisation::Union{Int64,Nothing}=nothing
+  )
   p = plot(title="<Z_$i>(t) for n qubits=$nqubits, \n Pauli : max weight=$max_weight, min abs coeff=$min_abs_coeff, \n MPO : Maxdim=$maxdim, Cutoff=$cutoff", xlabel="layers", ylabel="overlap with the state |0>")
   plot!(p, overlap_pp, label="Pauli")
   plot!(p, overlap_mpo, label="MPO")
   plot!(p, overlap_exact, label="Exact", line = (1, :dash), color=:black)
+  if !isnothing(thermalisation)
+    vline!([thermalisation], label="Thermalisation", linestyle=:dash, color=:red)
+  end
   plot!(legend=:outerbottom, legendcolumns=2)
   display(p)
 end 
