@@ -276,7 +276,8 @@ function propagate_1layer(
   layer_gates::Union{Gate, Vector{Gate}}, 
   current::Union{PauliSum, PauliString},
   parameter::Union{Nothing, Float64, Vector{Float64}};
-  max_weight::Union{Nothing, Integer}=nothing, 
+  max_weight::Union{Nothing, Integer}=nothing,
+  max_size::Union{Nothing, Integer}=nothing,
   min_abs_coeff::Float64=0.,
   γ::Float64=0., # for the Noise
   )::PauliSum
@@ -303,11 +304,27 @@ function propagate_1layer(
 
   This function propagates the observable using `propagate`, applies a depolarizing noise layer if `γ > 0`, and renormalizes the observable such that the sum of the squared coefficients equals 1.
   """
+  if typeof(current) <: PauliString{<:Unsigned, Float64}
+    current = PauliSum(current)
+  end
+
   if max_weight === nothing
     max_weight = current.nqubits 
   end
 
   current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
+
+  if max_size !== nothing && length(current) > max_size
+        coeffs = current.coeffs
+        
+        perm = sortperm(abs.(coeffs), rev=true)
+       
+        keep_indices = perm[1:max_size]
+        
+        current.paulis = current.paulis[keep_indices]
+        current.coeffs = current.coeffs[keep_indices]
+    end 
+
   if !(γ == 0.)
 	  applynoiselayer(current; depol_strength=1, dephase_strength=0, noise_level=γ)
   end
@@ -321,6 +338,7 @@ function propagate_layerbylayer(
   nlayers::Int64, 
   parameters::Union{Vector{Float64}, Nothing}=nothing; 
   max_weight::Union{Integer,Nothing}=nothing, 
+  max_size::Union{Integer,Nothing}=nothing, 
   min_abs_coeff::Float64=0.,
   k::Union{Int64, Nothing}=nothing, # for the Entropy
   ψ0::Union{Vector{Float64}, Nothing}=nothing, # for the Overlap
@@ -361,10 +379,6 @@ function propagate_layerbylayer(
 
   overlaps, entropy, norm = Float64[], Float64[], Float64[]
 
-  if max_weight === nothing
-    max_weight = observable.nqubits 
-  end
-
   current = PauliPropagation.PauliSum(observable)
 
   if k != nothing
@@ -377,7 +391,7 @@ function propagate_layerbylayer(
   
   for layer_idx in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\ (Heisenberg picture)
     layer_gates, parameter = get_layer(layer_idx, ngate_bylayer, circuit, parameters)
-    current = propagate_1layer(layer_gates, current, parameter; max_weight, min_abs_coeff, γ)
+    current = propagate_1layer(layer_gates, current, parameter; max_weight, max_size, min_abs_coeff, γ)
     if k != nothing
       push!(entropy, renyi_entropy(current; k))
     end
