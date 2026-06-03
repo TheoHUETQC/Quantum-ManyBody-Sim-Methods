@@ -314,16 +314,15 @@ function propagate_1layer(
 
   current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
 
-  if max_size !== nothing && length(current) > max_size
-        coeffs = current.coeffs
-        
-        perm = sortperm(abs.(coeffs), rev=true)
-       
-        keep_indices = perm[1:max_size]
-        
-        current.paulis = current.paulis[keep_indices]
-        current.coeffs = current.coeffs[keep_indices]
-    end 
+  if max_size !== nothing
+    while length(current.terms) > max_size
+      # argmin retourne la clé (k) pour laquelle le coeff est minimale
+      min_key = argmin(current.terms)
+            
+      # Supprimer l'élément
+      delete!(current.terms, min_key)
+    end
+  end 
 
   if !(γ == 0.)
 	  applynoiselayer(current; depol_strength=1, dephase_strength=0, noise_level=γ)
