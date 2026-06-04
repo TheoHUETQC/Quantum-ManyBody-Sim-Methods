@@ -78,7 +78,7 @@ function complexity_plot(
       markersize = 5,
       lw = 2,                        # Épaisseur de ligne
       xlabel = "Number of qubits (N)",
-      ylabel = "Computation time (seconds) log scale",
+      ylabel = "Computation time (seconds)",
       title = "Scaling of complexity : Exact vs Pauli vs MPO, \nnlayers=$nlayers",
       subtitle = "TFIM Circuit",
       legend = :topleft,
