@@ -127,7 +127,6 @@ function apply_depolarizing_noise(
     X_base = ComplexF64[0 1; 1 0]
     Y_base = ComplexF64[0 -im; im 0]
     Z_base = ComplexF64[1 0; 0 -1]
-    Id_base = ComplexF64[1 0; 0 1]
     
     c0 = 1.0 - (3.0 * lambda / 4.0)
     c1 = lambda / 4.0

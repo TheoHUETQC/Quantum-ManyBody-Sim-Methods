@@ -20,6 +20,9 @@ import .exact_functions as ext
 # other
 using DataFrames, CSV
 
+include("../src/circuit.jl")
+import .circuit as ct
+
 include("../src/utils.jl")
 import .utils as us
 
@@ -75,12 +78,14 @@ for nqubits in Ns
     gamma = lambda/nqubits
     println("---------- gamma=$lambda / $nqubits ----------")
 
-    Zi_t_exact, result_exact = ext.propagate_layerbylayer(circuit_exact, Z_i_exact; ψ0=ψ0_exact)
-    overlap_exact = result_exact["overlap"]
-
     error_pp_list, error_mpo_list = Float64[], Float64[]
 
     for j in 1:length(maxdim_list)
+
+      println("------- gamma=$lambda / $nqubits, Exact -------")
+      Zi_t_exact, result_exact = ext.propagate_layerbylayer(circuit_exact, Z_i_exact; ψ0=ψ0_exact, γ=gamma)
+      overlap_exact = result_exact["overlap"]
+
       max_size = maxsize_list[j]
       maxdim = maxdim_list[j]
 
