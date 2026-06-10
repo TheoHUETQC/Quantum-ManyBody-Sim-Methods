@@ -272,6 +272,44 @@ function get_layer(
   return layer_gates, parameter
 end
 
+function truncate_max_size!(psum::PauliSum, max_size::Int64)::PauliSum
+  """
+  truncate_max_size!(psum::PauliSum, max_size::Int64)::PauliSum
+
+  Truncate `psum.terms` in-place to keep only the `max_size` dominant terms.
+
+  `psum.terms` is a `Dict{UInt*, Float64}` mapping each Pauli string to its
+  coefficient. If the number of terms exceeds `max_size`, the terms with the
+  smallest coefficients are discarded, retaining only the `max_size` largest.
+
+  # Arguments
+  - `psum::PauliSum`: the operator whose terms are truncated in-place.
+  - `max_size::Int64`: maximum number of Pauli string / coefficient pairs to retain.
+
+  # Returns
+  The modified `psum::PauliSum` with at most `max_size` terms.
+
+  # Notes
+  - No-op if `length(psum.terms) <= max_size`.
+  - The dictionary is mutated directly; the top `max_size` terms by coefficient
+    magnitude are preserved, all others are dropped.
+  """
+  dict = psum.terms
+  n = length(dict)
+    n <= max_size && return psum
+
+    Pc_pairs = collect(dict) # Vector(PauliString => Coeff)
+    partialsort!(Pc_pairs, 1:max_size, by=last, rev=true) # 'by=last' compare the Coeff, '1:max_size' not all of them, just the top "max_size" ones, 'rev=true' sort them.
+
+    empty!(dict)
+    sizehint!(dict, max_size)
+    @inbounds for i in 1:max_size
+        P, c = Pc_pairs[i]  
+        dict[P] = c
+    end
+    return psum
+end
+
 function propagate_1layer(
   layer_gates::Union{Gate, Vector{Gate}}, 
   current::Union{PauliSum, PauliString},
@@ -315,13 +353,7 @@ function propagate_1layer(
   current = propagate(layer_gates, current, parameter; max_weight, min_abs_coeff)
 
   if max_size !== nothing
-    while length(current.terms) > max_size
-      # argmin retourne la clé (k) pour laquelle le coeff est minimale
-      min_key = argmin(current.terms)
-            
-      # Supprimer l'élément
-      delete!(current.terms, min_key)
-    end
+    truncate_max_size!(current, max_size)
   end 
 
   if !(γ == 0.)
