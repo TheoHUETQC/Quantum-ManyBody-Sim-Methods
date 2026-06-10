@@ -96,8 +96,8 @@ for nqubits in Ns
       Z_it_mpo, result_mpo = mpo.propagate_layerbylayer(circuit_mpo, Z_i_mpo; cutoff, maxdim, ψ0=ψ0_mps, γ=gamma)
 
       # --- Save Data ---
-      push!(error_pp_list, mean(@. abs(overlap_exact - result_pp["overlap"])))
-      push!(error_mpo_list, mean(@. abs(overlap_exact - result_mpo["overlap"])))
+      push!(error_pp_list, @. abs(overlap_exact - result_pp["overlap"]))
+      push!(error_mpo_list, @. abs(overlap_exact - result_mpo["overlap"]))
     end
     error_mpo_dict["error gammaN=$lambda"] = error_mpo_list
     error_pp_dict["error gammaN=$lambda"] = error_pp_list
