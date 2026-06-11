@@ -78,7 +78,7 @@ for nqubits in Ns
     gamma = lambda/nqubits
     println("---------- gamma=$lambda / $nqubits ----------")
 
-    error_pp_list, error_mpo_list = Float64[], Float64[]
+    error_pp_list, error_mpo_list = Vector{Float64}[], Vector{Float64}[]
 
     for j in 1:length(maxdim_list)
 
