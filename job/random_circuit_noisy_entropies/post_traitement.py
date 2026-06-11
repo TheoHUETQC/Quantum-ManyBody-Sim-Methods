@@ -15,12 +15,12 @@ save_dir = 'figures'
 os.makedirs(save_dir, exist_ok=True) # Create the directory if it doesn't exist
 
 # --- Paramètres ---
-nqubits_list = [7, 8]#, 9, 15, 20]
+nqubits_list = [7, 8, 9]#, 15, 20]
 lambda_list = np.arange(0, 0.4 + 0.05, 0.05)
 runs = range(10)
 
-maxdim_list = [2 ** i for i in range(2,7+1)]
-maxsize_list = [2 ** i for i in range(5,10+1)]
+maxdim_list = [2 ** i for i in range(2,6+1)]
+maxsize_list = [4 ** i for i in range(2,6+1)]
 
 def get_data(run, nqubits, entropy_type, lambda_val, max_val):
     """Récupère la colonne spécifique du CSV"""

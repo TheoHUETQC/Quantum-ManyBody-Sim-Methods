@@ -28,7 +28,6 @@ path = joinpath("results", "run_$run")
 mkpath(path)
 
 nlayers = 40
-tolerance = 1e-1
 
 # Observable : Z_i
 i = 2
@@ -39,8 +38,8 @@ Ns = [7, 8, 9, 15, 20]
 # Gamma list = lambda_list/Nqubits
 lambda_list = 0:0.05:0.4
 
-maxdim_list = 2 .^ (2:7)
-maxsize_list = 2 .^(5:10)
+maxdim_list = 2 .^ (2:6)
+maxsize_list = 4 .^(2:6)
 cutoff = 1e-7
 
 for nqubits in Ns
