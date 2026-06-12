@@ -318,6 +318,7 @@ function propagate_1layer(
   max_size::Union{Nothing, Integer}=nothing,
   min_abs_coeff::Float64=0.,
   γ::Float64=0., # for the Noise
+  normalize::Bool=true
   )::PauliSum
   raw"""
   propagate_1layer(layer_gates::Union{Gate, Vector{Gate}}, current::Union{PauliSum, PauliString}, parameter::Union{Nothing, Float64, Vector{Float64}}; max_weight::Union{Nothing, Integer}=nothing, min_abs_coeff::Float64=0.0, γ::Float64=0.0)::PauliSum
@@ -332,6 +333,7 @@ function propagate_1layer(
   * `max_weight`: Optional truncation parameter to limit the Pauli string weight.
   * `min_abs_coeff`: Minimum absolute coefficient value for truncation.
   * `γ`: Noise intensity parameter for depolarizing noise.
+  * `normalize` : If `true`, it renormalizes the observable
 
   ### Returns
 
@@ -359,7 +361,9 @@ function propagate_1layer(
   if !(γ == 0.)
 	  applynoiselayer(current; depol_strength=1, dephase_strength=0, noise_level=γ)
   end
-  current /= sqrt(pauli_norm(current)) # on divise par la norm pour que \sum |c_\alpha|²=1 malgres les troncations
+  if normalize
+    current /= sqrt(pauli_norm(current)) # on divise par la norm pour que \sum |c_\alpha|²=1 malgres les troncations
+  end
   return current
 end
 
@@ -374,6 +378,7 @@ function propagate_layerbylayer(
   k::Union{Int64, Nothing}=nothing, # for the Entropy
   ψ0::Union{Vector{Float64}, Nothing}=nothing, # for the Overlap
   γ::Float64=0., # for the Noise
+  normalize::Bool=true,
   disable_print::Bool=false
   )::Tuple{PauliSum, Dict{String, Any}}
   raw"""
@@ -392,6 +397,7 @@ function propagate_layerbylayer(
   * `k`: Optional order for Rényi entropy calculation.
   * `ψ0`: Optional reference state vector for overlap calculation.
   * `γ`: Noise intensity parameter for depolarizing noise.
+  * `normalize` : If `true`, at each layer, it renormalizes the observable
   * `disable_print`: If `true`, suppresses progress output.
 
   ### Returns
@@ -422,7 +428,7 @@ function propagate_layerbylayer(
   
   for layer_idx in nlayers:-1:1 # pour propager on a besoin de donner les couches dans le sens inverse /!\ (Heisenberg picture)
     layer_gates, parameter = get_layer(layer_idx, ngate_bylayer, circuit, parameters)
-    current = propagate_1layer(layer_gates, current, parameter; max_weight, max_size, min_abs_coeff, γ)
+    current = propagate_1layer(layer_gates, current, parameter; max_weight, max_size, min_abs_coeff, γ, normalize)
     if k != nothing
       push!(entropy, renyi_entropy(current; k))
     end

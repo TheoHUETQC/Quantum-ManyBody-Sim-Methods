@@ -109,6 +109,7 @@ function propagate_layerbylayer(
     bond::Union{Int, Nothing}=nothing,
     ψ0::Union{Vector{Float64}, Nothing}=nothing,
     γ::Float64=0., # for the Noise
+    normalize::Bool=true,
     disable_print::Bool=false
     )::Tuple{Matrix, Dict{String, Any}}
     raw"""
@@ -123,6 +124,7 @@ function propagate_layerbylayer(
     * `bond`: Optional bond index to track entanglement entropy at each step.
     * `ψ0`: Optional reference state vector to track state overlap at each step.
     * `γ`: Intensity of the depolarizing noise channel.
+    * `normalize` : If `true`, at each layer, it renormalizes the observable.
     * `disable_print`: If `true`, suppresses progress output.
 
     ### Returns
@@ -157,7 +159,9 @@ function propagate_layerbylayer(
         end
         if !(γ == 0.)
           current = apply_depolarizing_noise(current, γ)
-          current *= (norm0/norm(current))
+          if normalize
+            current *= (norm0/norm(current))
+          end
         end
         if bond != nothing
           push!(entropies, operator_entropy(current, bond))

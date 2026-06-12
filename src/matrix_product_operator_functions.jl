@@ -215,6 +215,7 @@ function propagate_1layer(
   maxdim::Union{Nothing, Integer}=nothing, 
   cutoff::Float64=0.,
   γ::Float64=0., # for the Noise
+  normalize::Bool=true
   )::MPO
   raw"""
   propagate_1layer(layer::Union{ITensor, Vector{ITensor}}, current::MPO, norm0::Float64; maxdim::Union{Nothing, Integer}=nothing, cutoff::Float64=0.0, γ::Float64=0.0)::MPO
@@ -229,6 +230,7 @@ function propagate_1layer(
   * `maxdim`: The maximum bond dimension for truncation.
   * `cutoff`: The singular value truncation threshold.
   * `γ`: The strength of the depolarizing noise channel.
+  * `normalize` : If `true`, at each layer, it renormalizes the observable.
 
   ### Returns
 
@@ -248,7 +250,9 @@ function propagate_1layer(
   if !(γ == 0.)
     current = apply_depolarizing_noise(current, sites_mps, γ; cutoff, maxdim)
   end
-  current *= (norm0/norm(current)) # pour conserver la norm malgres les troncations
+  if normalize
+    current *= (norm0/norm(current)) # pour conserver la norm malgres les troncations
+  end
   return current
 end
 
@@ -260,6 +264,7 @@ function propagate_layerbylayer(
   bond::Union{Int, Nothing}=nothing, # for the Entropy
   ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
   γ::Float64=0., # for the Noise
+  normalize::Bool=true,
   disable_print::Bool=false
   )::Tuple{MPO, Dict{String, Any}}
   raw"""
@@ -276,6 +281,7 @@ function propagate_layerbylayer(
   * `bond`: Optional bond index to track entanglement entropy at each step.
   * `ψ0`: Optional reference `MPS` to track state overlap at each step.
   * `γ`: Intensity of the depolarizing noise channel.
+  * `normalize` : If `true`, at each layer, it renormalizes the observable.
   * `disable_print`: If `true`, suppresses progress output.
 
   ### Returns
@@ -313,7 +319,7 @@ function propagate_layerbylayer(
   push!(maxlink, maxlinkdim(observable))
 
   for (layer_idx, layer) in enumerate(heinseberg_circuit)
-    current = propagate_1layer(layer, current, norm0; maxdim, cutoff, γ)
+    current = propagate_1layer(layer, current, norm0; maxdim, cutoff, γ, normalize)
 
     if bond != nothing
       push!(entropies, operator_entropy(current, bond))
