@@ -368,10 +368,11 @@ end
 function random_circuit(
   nqubits::Integer, 
   nlayers::Integer; 
+  separateOddEvenLayer::Bool=false,
   topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing
   )::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
   raw"""
-  random_circuit(nqubits::Integer, nlayers::Integer; topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
+  random_circuit(nqubits::Integer, nlayers::Integer; separateOddEvenLayer::Bool=false, topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
 
   Generates a random quantum circuit in three simultaneous representations: Pauli Propagation, MPO (ITensors), and Exact matrix multiplication.
 
@@ -379,7 +380,8 @@ function random_circuit(
 
   # Arguments
   - `nqubits::Integer`: The total number of qubits in the system.
-  - `nlayers::Integer`: The number of layers (depth) of the circuit.
+  - `nlayers::Integer`: The number of layers (odd + even) (depth) of the circuit.
+  - `separateOddEvenLayer`: allows to generate (or not) the circuit for the MPO and exact methods by separating the even and odd layers (length(circuit_exact) = length(circuit_mpo) = 2*nlayers).
   - `topology::Union{Vector{Tuple{Int64, Int64}}, Nothing}=nothing`: The connectivity graph for the gates. If `nothing`, a non-periodic bricklayer topology is used.
 
   # Returns
@@ -399,9 +401,18 @@ function random_circuit(
   end
 
   for _ in 1:nlayers
+    temp = separateOddEvenLayer
+
     layer_mpo::Vector{ITensor} = []
     layer_exact::Vector{Matrix} = []
     for pair in topology
+      if iseven(pair[1]) && temp
+        push!(circuit_mpo, layer_mpo)
+        push!(circuit_exact, layer_exact)
+        layer_mpo = []
+        layer_exact = []
+        temp = false
+      end
       U = haar_unitary(4)
       # U = [0 0 0 1; 0 0 1 0; 0 1 0 0; 1 0 0 0] # XX gate for test
       U_pp, U_mpo, U_exact = matrix_to_gate(U, pair, nqubits, sites)
