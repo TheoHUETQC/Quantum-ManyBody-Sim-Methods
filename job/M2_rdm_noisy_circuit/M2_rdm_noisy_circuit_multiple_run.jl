@@ -34,7 +34,7 @@ for nqubits in Ns
   println("------------- nqubits=$nqubits -------------")
   # define the circuit
   nlayers = 4*nqubits
-  circuit_pp, _, _, _ = ct.random_circuit(nqubits, nlayers)
+  circuit_pp, _, _, _ = ct.random_circuit(nqubits, 2*nqubits)
 
   # define the observable
   Z_i_pp = PauliString(nqubits, :Z, i) # I...IZI...I
@@ -45,7 +45,7 @@ for nqubits in Ns
   for lambda in lambda_list
     gamma = lambda/nqubits
     println("---------- gamma=$lambda / $nqubits ----------")
-    psum, result_pp = pp.propagate_layerbylayer(circuit_pp, Z_i_pp, nlayers; γ=gamma, k, normalize=false)
+    psum, result_pp = pp.propagate_layerbylayer(circuit_pp, Z_i_pp, nlayers; γ=gamma, k, normalize=true)
 
     # --- Save Data ---
     results_Renyi_entropy_dict["gammaN=$lambda"] = result_pp["S"]
