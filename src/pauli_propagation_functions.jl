@@ -1,5 +1,5 @@
 module pauli_propagation_functions
-export decode_pauli, compute_matrix, overlap, pauli_norm, shannon_entropy, renyi_entropy, applynoiselayer, propagate_layerbylayer
+export decode_pauli, compute_matrix, overlap, pauli_norm, shannon_entropy, renyi_entropy, applynoiselayer, truncate_max_size, propagate_layerbylayer
 
 using PauliPropagation
 using PauliPropagation: Xmat, Ymat, Zmat
