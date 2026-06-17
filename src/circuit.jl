@@ -85,6 +85,83 @@ function matrix_to_gate(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64, si
   return U_pp, U_mpo, U_exact
 end
 
+function matrix_to_mpo_gate(U::Matrix, pair::Tuple{Int64, Int64}, sites::Vector{<:Index})::ITensor
+  raw"""
+  matrix_to_mpo_gate(U::Matrix, pair::Tuple{Int64, Int64}, sites::Vector{<:Index})::ITensor
+
+  Converts a local $4 \\times 4$ unitary matrix into an `ITensor` (MPO) compatible with `ITensors.jl`, indexed by the provided `sites`.
+
+  # Arguments
+  - `U::Matrix{ComplexF64}`: The local $4 \\times 4$ unitary matrix to convert.
+  - `pair::Tuple{Int64, Int64}`: The qubit indices on which the gate acts.
+  - `sites::Vector{<:Index}`: The ITensors `SiteSet` or vector of indices corresponding to the physical system.
+
+  # Returns
+  - `ITensor`: A tensor containing the gate in the MPO `ITensor` format, the MPO `ITensor` format.
+
+  # Throws
+  - `AssertionError`: If `U` is not unitary (i.e., $U U^\dagger \neq I$).
+  """
+  # need to be 4x4 and unitary
+  @assert U * U' ≈ U' * U ≈ I(4)
+
+  i, j = pair
+  s1, s2 = sites[i], sites[j]
+  U_mpo = itensor(U, s2', s1', s2, s1)
+
+  return U_mpo
+end
+
+function matrix_to_pauli_gate(U::Matrix, pair::Tuple{Int64, Int64})::Gate
+  raw"""
+  matrix_to_pauli_gate(U::Matrix, pair::Tuple{Int64, Int64})::Gate
+
+  Converts a local $4 \\times 4$ unitary matrix into a gate in the Pauli Propagation representation.
+  Calculates the Pauli Transfer Matrix (PTM) and wraps it into a `TransferMapGate`.
+
+  # Arguments
+  - `U::Matrix{ComplexF64}`: The local $4 \\times 4$ unitary matrix to convert.
+  - `pair::Tuple{Int64, Int64}`: The qubit indices on which the gate acts.
+
+  # Returns
+  - `Gate`: A gate in `PauliPropagation` format.
+
+  # Throws
+  - `AssertionError`: If `U` is not unitary (i.e., $U U^\dagger \neq I$).
+  """
+  # need to be 4x4 and unitary
+  @assert U * U' ≈ U' * U ≈ I(4)
+
+  U_ptm = calculateptm(U)
+  U_pp = TransferMapGate(U_ptm, pair)
+
+  return U_pp
+end
+
+function matrix_to_gate(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64)::Matrix{ComplexF64}
+  raw"""
+  matrix_to_gate(U::Matrix, pair::Tuple{Int64, Int64}, nqubits::Int64)::Matrix{ComplexF64}
+
+  Converts the local operator into a global $2^{nqubits} \\times 2^{nqubits}$ matrix using Kronecker products.
+
+  # Arguments
+  - `U::Matrix{ComplexF64}`: The local $4 \\times 4$ unitary matrix to convert.
+  - `pair::Tuple{Int64, Int64}`: The qubit indices on which the gate acts.
+  - `nqubits::Int64`: The total number of qubits in the system.
+
+  # Returns
+  - `Matrix{ComplexF64}`: A Matrix wich is the gate in the global dense `Matrix` format.
+
+  # Throws
+  - `AssertionError`: If `U` is not unitary (i.e., $U U^\dagger \neq I$).
+  """
+  # need to be 4x4 and unitary
+  @assert U * U' ≈ U' * U ≈ I(4)
+
+  U_gate = local_to_global_matrices(U, pair, nqubits)
+  return U_gate
+end
+
 # ======================  MFIM Circuit ======================  
 
 # ------------ Hamiltonien local h_{j,j+1} ------------
@@ -369,10 +446,13 @@ function random_circuit(
   nqubits::Integer, 
   nlayers::Integer; 
   separateOddEvenLayer::Bool=false,
+  exact::Bool=true,
+  mpo::Bool=true,
+  pauli::Bool=true,
   topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing
   )::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
   raw"""
-  random_circuit(nqubits::Integer, nlayers::Integer; separateOddEvenLayer::Bool=false, topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
+  random_circuit(nqubits::Integer, nlayers::Integer; separateOddEvenLayer::Bool=false, exact::Bool=true, mpo::Bool=true, pauli::Bool=true, topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
 
   Generates a random quantum circuit in three simultaneous representations: Pauli Propagation, MPO (ITensors), and Exact matrix multiplication.
 
@@ -380,8 +460,11 @@ function random_circuit(
 
   # Arguments
   - `nqubits::Integer`: The total number of qubits in the system.
-  - `nlayers::Integer`: The number of layers (odd + even) (depth) of the circuit.
-  - `separateOddEvenLayer`: allows to generate (or not) the circuit for the MPO and exact methods by separating the even and odd layers (length(circuit_exact) = length(circuit_mpo) = 2*nlayers).
+  - `nlayers::Integer`: The number of layers (depth) of the circuit (if separateOddEvenLayer=true, at the end we have a circuit composed by 2*nlayers layers).
+  - `separateOddEvenLayer::Bool=false`: If, when generating the circuit, we separate the layers between those applied to even and odd qubits (in order to apply noise later...).
+  - `exact::Bool=true` : if the program return a circuit for the exact diagonalisation method.
+  - `mpo::Bool=true` : if the program return a circuit for the mpo propagation method. 
+  - `pauli::Bool=true` : if the program return a circuit for the pauli propagation method.
   - `topology::Union{Vector{Tuple{Int64, Int64}}, Nothing}=nothing`: The connectivity graph for the gates. If `nothing`, a non-periodic bricklayer topology is used.
 
   # Returns
@@ -415,15 +498,25 @@ function random_circuit(
       end
       U = haar_unitary(4)
       # U = [0 0 0 1; 0 0 1 0; 0 1 0 0; 1 0 0 0] # XX gate for test
-      U_pp, U_mpo, U_exact = matrix_to_gate(U, pair, nqubits, sites)
-      push!(circuit_pp, U_pp)
-      push!(layer_mpo, U_mpo)
-      push!(layer_exact, U_exact)
+      if pauli
+        U_pp = matrix_to_pauli_gate(U, pair)
+        push!(circuit_pp, U_pp)
+      end
+      if mpo
+        U_mpo = matrix_to_mpo_gate(U, pair, sites)
+        push!(layer_mpo, U_mpo)
+      end
+      if exact
+        U_exact = matrix_to_gate(U, pair, nqubits)
+        push!(layer_exact, U_exact)
+      end
     end
     push!(circuit_mpo, layer_mpo)
     push!(circuit_exact, layer_exact)
   end
-  return circuit_pp, circuit_mpo, circuit_exact, sites
+
+  circuit = {"exact"=>circuit_exact, "mpo"=>circuit_mpo, "pauli"=>circuit_pp, "sites"=>sites}
+  return circuit
 end
 
 end # module
