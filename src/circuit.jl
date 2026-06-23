@@ -450,7 +450,7 @@ function random_circuit(
   mpo::Bool=true,
   pauli::Bool=true,
   topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing
-  )::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
+  )::Dict{}
   raw"""
   random_circuit(nqubits::Integer, nlayers::Integer; separateOddEvenLayer::Bool=false, exact::Bool=true, mpo::Bool=true, pauli::Bool=true, topology::Union{Vector{Tuple{Int64, Int64}},Nothing}=nothing)::Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}
 
@@ -468,7 +468,7 @@ function random_circuit(
   - `topology::Union{Vector{Tuple{Int64, Int64}}, Nothing}=nothing`: The connectivity graph for the gates. If `nothing`, a non-periodic bricklayer topology is used.
 
   # Returns
-  - `Tuple{Vector{Gate}, Vector{Vector{ITensor}}, Vector{Vector{Matrix}}, Vector{<:Index}}`: A tuple containing:
+  - `Dict{String, i}` with i :
       1. `Vector{Gate}`: The circuit formatted for `PauliPropagation.jl`.
       2. `Vector{Vector{ITensor}}`: The circuit formatted as layers of `ITensor`s for MPO simulations.
       3. `Vector{Vector{Matrix}}`: The circuit formatted as layers of global dense `Matrix` objects for exact simulation.
@@ -515,7 +515,7 @@ function random_circuit(
     push!(circuit_exact, layer_exact)
   end
 
-  circuit = {"exact"=>circuit_exact, "mpo"=>circuit_mpo, "pauli"=>circuit_pp, "sites"=>sites}
+  circuit = Dict("exact"=>circuit_exact, "mpo"=>circuit_mpo, "pauli"=>circuit_pp, "sites"=>sites)
   return circuit
 end
 
