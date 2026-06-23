@@ -85,9 +85,9 @@ function compute_entropy(s::Union{Float64, Vector{Float64}, NDTensors.DenseTenso
   return -sum(p .* log.(p))
 end
 
-function operator_entropy(O::MPO, bond::Int)::Float64
+function operator_entropy(O::MPO, bond::Int, k::Int=1)::Float64
   raw"""
-  operator_entropy(O::MPO, bond::Int)::Float64
+  operator_entropy(O::MPO, bond::Int, k::Int=1)::Float64
 
   Calculate the entanglement entropy of an MPO at a specified bond by analyzing its singular value spectrum.
 
@@ -95,6 +95,7 @@ function operator_entropy(O::MPO, bond::Int)::Float64
 
   * `O`: The `MPO` operator.
   * `bond`: The bond index at which to compute the entropy.
+  * `k`: The order of the Rényi entropy (default is 1).
 
   ### Returns
 
@@ -102,7 +103,7 @@ function operator_entropy(O::MPO, bond::Int)::Float64
 
   ### Notes
 
-  This function orthogonalizes the MPO relative to the specified bond, performs a singular value decomposition (SVD) on the local tensor, and computes the Shannon entropy of the resulting singular values. If `bond` is 1, the function returns 0.0, as there is no entanglement link to the left.
+  This function orthogonalizes the MPO relative to the specified bond, performs a singular value decomposition (SVD) on the local tensor, and computes the entropy of the resulting singular values. If `bond` is 1, the function returns 0.0, as there is no entanglement link to the left.
   """
   if bond == 1 # on ne peut pas couper au bond 1 (pas de lien à gauche)
     return 0.0
@@ -117,7 +118,21 @@ function operator_entropy(O::MPO, bond::Int)::Float64
   U, S, V = svd(O_ortho[bond], l_link, s_inds...)
     
   s_vals = diag(S)
-  return compute_entropy(s_vals)
+
+  if k == 1
+    return compute_entropy(s_vals) #Shannon entropie
+  end
+  
+  norm_sq = sum(abs(s_vals)^2) # compute \sum_\alpha |s_\alpha|²  
+  if norm_sq == 0
+    return 0.
+  end
+
+  sum_coeffs_2k = sum(abs(s_vals)^(2*k))
+  zeta_k = sum_coeffs_2k / (norm_sq^k)
+
+  return log(zeta_k) / (1-k)
+
 end
 
 #------------ Noise layer ------------
@@ -262,13 +277,14 @@ function propagate_layerbylayer(
   cutoff::Float64=0.,
   maxdim::Union{Int, Nothing}=nothing,
   bond::Union{Int, Nothing}=nothing, # for the Entropy
+  k::Int64=1, # for the Entropy
   ψ0::Union{MPS, Nothing}=nothing, # for the Overlap
   γ::Float64=0., # for the Noise
   normalize::Bool=true,
   disable_print::Bool=false
   )::Tuple{MPO, Dict{String, Any}}
   raw"""
-  propagate_layerbylayer(circuit::Vector{Vector{ITensor}}, observable::MPO; cutoff::Float64=0.0, maxdim::Union{Int, Nothing}=nothing, bond::Union{Int, Nothing}=nothing, ψ0::Union{MPS, Nothing}=nothing, γ::Float64=0.0, disable_print::Bool=false)::Tuple{MPO, Dict{String, Any}}
+  propagate_layerbylayer(circuit::Vector{Vector{ITensor}}, observable::MPO; cutoff::Float64=0.0, maxdim::Union{Int, Nothing}=nothing, bond::Union{Int, Nothing}=nothing, k::Int64=1, ψ0::Union{MPS, Nothing}=nothing, γ::Float64=0.0, disable_print::Bool=false)::Tuple{MPO, Dict{String, Any}}
 
   Propagate an MPO observable through a quantum circuit layer-by-layer in the Heisenberg picture.
 
@@ -279,6 +295,7 @@ function propagate_layerbylayer(
   * `cutoff`: Singular value truncation threshold for MPO applications.
   * `maxdim`: Maximum bond dimension allowed during MPO operations.
   * `bond`: Optional bond index to track entanglement entropy at each step.
+  * `k`: The order of the Rényi entropy (default is 1).
   * `ψ0`: Optional reference `MPS` to track state overlap at each step.
   * `γ`: Intensity of the depolarizing noise channel.
   * `normalize` : If `true`, at each layer, it renormalizes the observable.
