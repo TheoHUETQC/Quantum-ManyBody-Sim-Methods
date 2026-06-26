@@ -52,14 +52,14 @@ for nqubits in Ns
   maxsize_list = 4 .^(power_list)
   println("------------- nqubits=$nqubits -------------")
   # define the circuit
-  circuit_pp, circuit_mpo, circuit_exact, sites = ct.random_circuit(nqubits, nlayers; separateOddEvenLayer=true)
+  circuit_rdm = ct.random_circuit(nqubits, nlayers; separateOddEvenLayer=true)
 
   # define initial state |0> state
   ψ0_exact = append!([1.],[0. for _ in 2:(2^nqubits)])
 
   ψ0_pp = ψ0_exact
 
-  ψ0_mps = MPS(sites, "0")
+  ψ0_mps = MPS(circuit_rdm["sites"], "0")
 
   # define observable Z_i = I...IZI...I
   Z_i_exact = ext.get_Zi(nqubits, i)
@@ -68,7 +68,7 @@ for nqubits in Ns
 
   ops = ["Id" for n in 1:nqubits]
   ops[i] = "Z"
-  Z_i_mpo = MPO(sites, ops)
+  Z_i_mpo = MPO(circuit_rdm["sites"], ops)
 
   # --- PROPAGATION ---
   maxdim_list_for_csv = copy(maxdim_list)
@@ -85,17 +85,16 @@ for nqubits in Ns
     error_pp_list, error_mpo_list = Vector{Float64}[], Vector{Float64}[]
     exact_value_sq = Vector{Float64}[]
 
+    println("------- gamma=$lambda / $nqubits, Exact -------")
+    Zi_t_exact, result_exact = ext.propagate_layerbylayer(circuit_rdm["exact"], Z_i_exact; ψ0=ψ0_exact, γ=gamma, normalize)
+    overlap_exact = result_exact["overlap"]
+
     for (maxdim, max_size) in zip(maxdim_list, maxsize_list)
-
-      println("------- gamma=$lambda / $nqubits, Exact -------")
-      Zi_t_exact, result_exact = ext.propagate_layerbylayer(circuit_exact, Z_i_exact; ψ0=ψ0_exact, γ=gamma, normalize)
-      overlap_exact = result_exact["overlap"]
-
       println("------- gamma=$lambda / $nqubits, Pauli, max_size=$max_size -------")
-      psum, result_pp = pp.propagate_layerbylayer(circuit_pp, Z_i_pp, nlayers*2; max_size, ψ0=ψ0_pp, γ=gamma, normalize)
+      psum, result_pp = pp.propagate_layerbylayer(circuit_rdm["pauli"], Z_i_pp, nlayers*2; max_size, ψ0=ψ0_pp, γ=gamma, normalize)
 
       println("------- gamma=$lambda / $nqubits, MPO, maxdim=$maxdim -------")
-      Z_it_mpo, result_mpo = mpo.propagate_layerbylayer(circuit_mpo, Z_i_mpo; maxdim, ψ0=ψ0_mps, γ=gamma, normalize)
+      Z_it_mpo, result_mpo = mpo.propagate_layerbylayer(circuit_rdm["mpo"], Z_i_mpo; maxdim, ψ0=ψ0_mps, γ=gamma, normalize)
 
       # --- Save Data ---
       push!(error_pp_list, @. abs(overlap_exact - result_pp["overlap"])^2)
