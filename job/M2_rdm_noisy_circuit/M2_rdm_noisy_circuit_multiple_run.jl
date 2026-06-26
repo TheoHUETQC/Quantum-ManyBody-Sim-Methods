@@ -40,22 +40,23 @@ for nqubits in Ns
   println("------------- nqubits=$nqubits -------------")
   # define the circuit
   nlayers = 4*nqubits
-  circuit = ct.random_circuit(nqubits, 2*nqubits; separateOddEvenLayer=true, exact=false)
+  circuit_rdm = ct.random_circuit(nqubits, 2*nqubits; separateOddEvenLayer=true, exact=false)
 
   # define the observable
   Z_i_pp = PauliString(nqubits, :Z, i) # I...IZI...I
   ops = ["Id" for n in 1:nqubits]
   ops[i] = "Z"
-  Z_i_mpo = MPO(circuit["sites"], ops)
+  Z_i_mpo = MPO(circuit_rdm["sites"], ops)
 
   # --- PROPAGATION ---
   results_OSE_dict = Dict("N_qubits" => nqubits, "Layer" => 0:nlayers)
+  results_OE_dict = Dict("N_qubits" => nqubits, "Layer" => 0:nlayers)
 
   for lambda in lambda_list
     gamma = lambda/nqubits
     println("---------- gamma=$lambda / $nqubits ----------")
-    psum, result_pp = pp.propagate_layerbylayer(circuit["pauli"], Z_i_pp, nlayers; γ=gamma, k, normalize=true)
-    mpo, result_mpo = mpo.propagate_layerbylayer(circuit["mpo"], Z_i_mpo; γ=gamma, bond=nqubits÷2, k, normalize=true)
+    psum_tf, result_pp = pp.propagate_layerbylayer(circuit_rdm["pauli"], Z_i_pp, nlayers; γ=gamma, k, normalize=true)
+    mpo_tf, result_mpo = mpo.propagate_layerbylayer(circuit_rdm["mpo"], Z_i_mpo; γ=gamma, bond=nqubits÷2, k, normalize=true)
 
     # --- Save Data ---
     results_OSE_dict["gammaN=$lambda"] = result_pp["S"]
